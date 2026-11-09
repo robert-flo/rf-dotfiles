@@ -1,0 +1,18 @@
+{{- $profile := env "CHEZMOI_PROFILE" -}}
+{{- if not $profile -}}
+{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
+{{-     $profile = "clavis" -}}
+{{-   end -}}
+{{- end -}}
+
+{{ if eq $profile "clavis" }}
+#!/usr/bin/env bash
+# config.kdl hash: {{ include "dot_config/niri/config.kdl" | sha256sum }}
+# clavis config hash: {{ include "dot_config/clavis/config.json" | sha256sum }}
+set -euo pipefail
+
+if [[ -x "$HOME/.local/bin/niri-dotfiles-postinstall" ]]; then
+  echo "==> [chezmoi] Ejecutando niri-dotfiles-postinstall para {{ .chezmoi.username }}..."
+  "$HOME/.local/bin/niri-dotfiles-postinstall" || true
+fi
+{{ end }}

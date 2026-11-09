@@ -1,0 +1,21 @@
+{
+  "packages": {
+    "official": [
+      "neovim", "ripgrep", "fzf", "fd", "zoxide", "bat", "eza", "tmux", "fish", "git", "git-delta", "lazygit", "btop", "fastfetch",
+      "qt6-base", "qt6-declarative", "qt6-quick3d", "qt6-svg", "qt6-wayland", "qt6-shadertools", "qt6-5compat",
+      "qt6-lottie", "qt6-location", "qt6-positioning", "qt6-tools", "maplibre-native-qt", "qtkeychain-qt6",
+      "vulkan-headers", "ttf-material-symbols-variable", "matugen", "awww", "brightnessctl", "ddcutil",
+      "imagemagick", "xdg-terminal-exec", "wl-clipboard", "slurp", "grim", "gpu-screen-recorder", "ffmpeg",
+      "libpulse", "hyprpicker", "flatpak", "waybar", "fuzzel", "mako", "swaybg", "swaylock", "xwayland-satellite",
+      "xdg-desktop-portal-gnome", "polkit-gnome", "playerctl", "cliphist", "libqalculate", "wlsunset",
+      "gtk-layer-shell", "cava", "ttf-ibm-plex", "ttf-ibmplex-mono-nerd", "chezmoi"
+    ],
+    "personal": [
+      "herdr", "ravn-sessionizer", "ravn-git-launcher", "ravn-trio", "clavis-fish-theme", "prompt", "ravn-home-common", "ravn-home-niri"
+    ],
+    "aur": [
+      "qt6-m3shapes-git", "libcava", "ttf-lxgw-wenkai-screen", "mpvpaper-git", "dotbare",
+      "android-studio-canary", "google-chrome", "google-cloud-cli", "firebase-tools-bin"
+    ]
+  }
+}

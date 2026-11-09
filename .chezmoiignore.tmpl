@@ -1,0 +1,32 @@
+# Auto-detect profile based on username or CHEZMOI_PROFILE
+{{- $profile := env "CHEZMOI_PROFILE" -}}
+{{- if not $profile -}}
+{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
+{{-     $profile = "clavis" -}}
+{{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") -}}
+{{-     $profile = "nyxuri" -}}
+{{-   else -}}
+{{-     $profile = "omarchy" -}}
+{{-   end -}}
+{{- end -}}
+
+# Exclude Clavis / Niri when not in clavis profile
+{{ if ne $profile "clavis" }}
+.config/niri/**
+.config/clavis/**
+.local/share/clavis/**
+.local/share/statindet-niri/**
+.local/share/fcitx5-matugen-theme/**
+.local/share/clavis-fish-theme/**
+.local/bin/clavis-mpvpaper.sh
+.local/bin/niri-dotfiles-postinstall
+.local/bin/optimize-wallpaper
+Documents/Notas/**
+{{ end }}
+
+# Exclude Omarchy / Hyprland when not in omarchy profile
+{{ if ne $profile "omarchy" }}
+.config/hypr/**
+.config/omarchy/**
+.local/state/omarchy/**
+{{ end }}

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Herald OS follows the Omarchy theme (herald-os omarchy remove takes this out).
+exec herald-os theme omarchy >/dev/null 2>&1
