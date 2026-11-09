@@ -16,8 +16,8 @@ fi
 say "Adapting absolute paths to $HOME"
 for f in "$HOME/.config/clavis/config.json" "$HOME/.config/obsidian/obsidian.json" "$HOME/.config/environment.d/clavis-mpvpaper.conf"; do
     [[ -f "$f" ]] || continue
-    if [[ "$HOME" != /home/niri ]] && grep -q '/home/niri' "$f"; then
-        sed -i "s|/home/niri|$HOME|g" "$f"
+    if [[ "$HOME" != /home/niri && "$f" != *.tmpl ]] && grep -q '/home/niri/' "$f"; then
+        sed -i "s|/home/niri/|$HOME/|g" "$f"
         echo "    $f"
     fi
 done
