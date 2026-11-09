@@ -72,3 +72,12 @@ if [[ ${#MISSING_AUR[@]} -gt 0 ]] && command -v yay >/dev/null 2>&1; then
 else
   echo "==> [chezmoi] [✓] Todos los paquetes AUR requeridos están al día."
 fi
+
+# Garantizar Java 21 como entorno JVM por defecto del sistema
+if command -v archlinux-java >/dev/null 2>&1; then
+  cur_java="$(archlinux-java get 2>/dev/null || echo "")"
+  if [[ "$cur_java" != "java-21-openjdk" && -d "/usr/lib/jvm/java-21-openjdk" ]]; then
+    echo "==> [chezmoi] Configurando Java 21 como entorno JVM por defecto..."
+    $SUDO_CMD archlinux-java set java-21-openjdk 2>/dev/null || true
+  fi
+fi

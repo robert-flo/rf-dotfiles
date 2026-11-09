@@ -26,12 +26,21 @@ Rige de forma vinculante junto a las decisiones arquitectónicas formalizadas en
 Cualquier cambio o incorporación debe ubicarse estrictamente según esta matriz:
 
 ### 1. Herramientas Comunes (Compartidas por TODOS los Usuarios)
-Archivos que deben existir idénticos en todos los perfiles del sistema:
+Archivos y enlaces que deben existir idénticos en todos los perfiles del sistema:
 - `dot_config/lazygit/config.yml`: Configuración canónica de Craftzdog (Delta diff renderer + Commitizen en tecla `C`).
 - `dot_config/fish/`: Configuración global de la shell interactiva Fish.
+- `dot_config/fish/conf.d/android.fish`: Variables globales de ruta para Android SDK y herramientas de consola.
 - `dot_config/alacritty/alacritty.toml`: Emulador de terminal común de referencia.
 - `dot_config/btop/`, `dot_config/fastfetch/`: Diagnóstico y visualización CLI.
-- `dot_bashrc.tmpl`: Entorno interactivo común + bloque condicional `{{ if eq .chezmoi.username "rollo" }}` para herramientas de administración (DiscoSeguro y Bóveda LUKS).
+- `dot_bashrc.tmpl`: Entorno interactivo común (incluye exports de Android) + bloque condicional `{{ if eq .chezmoi.username "rollo" }}` para herramientas de administración (DiscoSeguro y Bóveda LUKS).
+- `dot_Android/symlink_Sdk`: Enlace simbólico declarativo hacia `/opt/android-sdk`.
+- `symlink_Cloud`: Enlace declarativo hacia `/z-drive/cloud`.
+- `symlink_Vaughan`: Enlace declarativo hacia `/z-drive/vaughan`.
+- `symlink_Idalia`: Enlace declarativo hacia `/z-drive/idalia`.
+- `symlink_Uploads-Gracie`: Enlace declarativo hacia `/z-drive/uploads-gracie`.
+- `symlink__boveda`: Enlace declarativo hacia `/z-drive/boveda`.
+- `dot_Work/symlink_tries`: Enlace declarativo hacia `/z-drive/tries`.
+- `dot_config/rclone/symlink_rclone.conf`: Enlace declarativo hacia `/etc/rclone/rclone.conf`.
 
 ### 2. Perfil Clavis (`niri`, `niri-test`, `sura`)
 Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
@@ -42,6 +51,7 @@ Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
 - `dot_config/mpv/`: Reproductor multimedia con interfaz `uosc` y botones MacTahoe.
 - `dot_config/obsidian/obsidian.json.tmpl`: Registro y apertura de la bóveda de notas (`Documents/Notas`).
 - `dot_config/environment.d/clavis-mpvpaper.conf.tmpl`: Variables de sesión Wayland.
+- `dot_config/systemd/user/niri.service.wants/`: Enlaces declarativos a `clavis-shell.service` y `clavis-clipboard.service`.
 - `dot_config/waybar/`, `dot_config/mako/`, `dot_config/fuzzel/`: Barras y notificaciones auxiliares.
 - `dot_config/thunderbird/`: Tema LiquidBird de correo.
 - `dot_local/bin/`: Scripts de postinstalación y optimización (`executable_niri-dotfiles-postinstall`).
