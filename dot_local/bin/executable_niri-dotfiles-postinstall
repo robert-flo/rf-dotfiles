@@ -54,6 +54,12 @@ apply_gsettings() {
     gsettings set org.gnome.desktop.interface cursor-size "$cursor_size"
     gsettings set org.gnome.desktop.interface color-scheme "$color_scheme"
     gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
+    if command -v xdg-settings >/dev/null; then
+        xdg-settings set default-web-browser zen.desktop 2>/dev/null || true
+    fi
+    if command -v xdg-mime >/dev/null; then
+        xdg-mime default zen.desktop x-scheme-handler/http x-scheme-handler/https text/html text/xml application/xhtml+xml 2>/dev/null || true
+    fi
 }
 
 if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && command -v gsettings >/dev/null; then
@@ -75,6 +81,24 @@ if systemctl --user show-environment >/dev/null 2>&1; then
     done
 else
     warn "no systemd user manager; enable later: systemctl --user enable clavis-shell.service clavis-clipboard.service"
+fi
+
+say "Zen Browser MacTahoe styles and profiles"
+template_css="$HOME/.zen/profile.default/chrome/zen-themes.css"
+if [[ -f "$template_css" ]]; then
+    shopt -s nullglob
+    for prof in "$HOME"/.zen/*; do
+        if [[ -d "$prof" && -f "$prof/compatibility.ini" ]]; then
+            mkdir -p "$prof/chrome"
+            cp -f "$template_css" "$prof/chrome/zen-themes.css" 2>/dev/null || true
+            cp -f "$HOME/.zen/profile.default/chrome/userChrome.css" "$prof/chrome/userChrome.css" 2>/dev/null || true
+            if ! grep -q "toolkit.legacyUserProfileCustomizations.stylesheets" "$prof/user.js" 2>/dev/null; then
+                echo 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);' >> "$prof/user.js"
+            fi
+            echo "    synced MacTahoe styles to $prof"
+        fi
+    done
+    shopt -u nullglob
 fi
 
 say "Folders"
