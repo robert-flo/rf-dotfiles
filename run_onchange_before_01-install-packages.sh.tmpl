@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_before_01-install-packages.sh.tmpl
+# Single Source of Truth package installer driven by Chezmoi
+# packages.json hash: {{ include ".chezmoidata/packages.json" | sha256sum }}
+# ==============================================================================
+set -euo pipefail
+
+# Only attempt package management if we can acquire sudo or are root
+CAN_SUDO=false
+if [[ $EUID -eq 0 ]]; then
+  CAN_SUDO=true
+  SUDO_CMD=""
+elif sudo -n true 2>/dev/null; then
+  CAN_SUDO=true
+  SUDO_CMD="sudo"
+fi
+
+if [[ "$CAN_SUDO" == false ]]; then
+  echo "==> [chezmoi] Omitiendo sincronización de paquetes del sistema (sin privilegios sudo directos)."
+  exit 0
+fi
+
+echo "==> [chezmoi] Verificando paquetes declarados en packages.json..."
+
+MISSING_PACMAN=()
+{{ range .packages.official }}
+if ! pacman -Qi "{{ . }}" >/dev/null 2>&1; then
+  if pacman -Si "{{ . }}" >/dev/null 2>&1; then
+    MISSING_PACMAN+=("{{ . }}")
+  fi
+fi
+{{ end }}
+
+{{ range .packages.personal }}
+if ! pacman -Qi "{{ . }}" >/dev/null 2>&1; then
+  if pacman -Si "{{ . }}" >/dev/null 2>&1; then
+    MISSING_PACMAN+=("{{ . }}")
+  fi
+fi
+{{ end }}
+
+# Verificar si herdr tiene actualización pendiente en [omarchy-personal]
+if pacman -Qu herdr >/dev/null 2>&1; then
+  MISSING_PACMAN+=("herdr")
+fi
+
+if [[ ${#MISSING_PACMAN[@]} -gt 0 ]]; then
+  echo "==> [chezmoi] Instalando ${#MISSING_PACMAN[@]} paquetes faltantes vía pacman: ${MISSING_PACMAN[*]}"
+  $SUDO_CMD pacman -S --needed --noconfirm "${MISSING_PACMAN[@]}"
+else
+  echo "==> [chezmoi] [✓] Todos los paquetes oficiales y personales están al día."
+fi
+
+# Paquetes AUR
+MISSING_AUR=()
+{{ range .packages.aur }}
+if ! pacman -Qi "{{ . }}" >/dev/null 2>&1; then
+  MISSING_AUR+=("{{ . }}")
+fi
+{{ end }}
+
+if [[ ${#MISSING_AUR[@]} -gt 0 ]] && command -v yay >/dev/null 2>&1; then
+  echo "==> [chezmoi] Instalando ${#MISSING_AUR[@]} paquetes AUR faltantes: ${MISSING_AUR[*]}"
+  if [[ $EUID -eq 0 ]]; then
+    # yay no puede ejecutarse directamente como root
+    REAL_USER="${SUDO_USER:-rollo}"
+    sudo -u "$REAL_USER" yay -S --needed --noconfirm "${MISSING_AUR[@]}" || true
+  else
+    yay -S --needed --noconfirm "${MISSING_AUR[@]}" || true
+  fi
+else
+  echo "==> [chezmoi] [✓] Todos los paquetes AUR requeridos están al día."
+fi

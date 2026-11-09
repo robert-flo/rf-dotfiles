@@ -14,6 +14,11 @@
 {{ if ne $profile "clavis" }}
 .config/niri/**
 .config/clavis/**
+.config/gtk-3.0/**
+.config/gtk-4.0/**
+.config/waybar/**
+.config/mako/**
+.config/fuzzel/**
 .local/share/clavis/**
 .local/share/statindet-niri/**
 .local/share/fcitx5-matugen-theme/**
@@ -22,6 +27,7 @@
 .local/bin/niri-dotfiles-postinstall
 .local/bin/optimize-wallpaper
 Documents/Notas/**
+run_onchange_after_clavis-postinstall.sh*
 {{ end }}
 
 # Exclude Omarchy / Hyprland when not in omarchy profile
