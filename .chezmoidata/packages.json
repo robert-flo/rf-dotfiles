@@ -90,6 +90,8 @@
       "ttf-ibm-plex",
       "ttf-ibmplex-mono-nerd",
       "ttf-material-symbols-variable",
+      "vlc",
+      "vlc-plugins-all",
       "vulkan-headers",
       "waybar",
       "wl-clipboard",
