@@ -3,7 +3,7 @@
 // rectangular focus ring drawn behind them, and windows that do not round
 // themselves (Clavis settings) stay square.
 window-rule {
-    geometry-corner-radius 8
+    geometry-corner-radius 12
     clip-to-geometry true
     draw-border-with-background false
 }
