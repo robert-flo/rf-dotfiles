@@ -1,3 +1,8 @@
+# Global ignores (never put in user's home)
+README.md
+.git*
+.chezmoidata/**
+
 # Auto-detect profile based on username or CHEZMOI_PROFILE
 {{- $profile := env "CHEZMOI_PROFILE" -}}
 {{- if not $profile -}}
@@ -19,6 +24,7 @@
 .config/waybar/**
 .config/mako/**
 .config/fuzzel/**
+.icons/**
 .local/share/clavis/**
 .local/share/statindet-niri/**
 .local/share/fcitx5-matugen-theme/**
@@ -26,7 +32,7 @@
 .local/bin/clavis-mpvpaper.sh
 .local/bin/niri-dotfiles-postinstall
 .local/bin/optimize-wallpaper
-Documents/Notas/**
+Documents/**
 run_onchange_after_clavis-postinstall.sh*
 {{ end }}
 
