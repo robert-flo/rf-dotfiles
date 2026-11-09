@@ -47,15 +47,21 @@ fi
 say "GTK, icon and cursor settings (gsettings)"
 echo "    color-scheme '$color_scheme' (Clavis theme.mode=$theme_mode)"
 echo "    cursor-theme '$cursor_theme' cursor-size $cursor_size"
-if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && command -v gsettings >/dev/null; then
+apply_gsettings() {
     gsettings set org.gnome.desktop.interface gtk-theme 'MacTahoe-Dark'
     gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark'
     gsettings set org.gnome.desktop.interface cursor-theme "$cursor_theme"
     gsettings set org.gnome.desktop.interface cursor-size "$cursor_size"
     gsettings set org.gnome.desktop.interface color-scheme "$color_scheme"
     gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
+}
+
+if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]] && command -v gsettings >/dev/null; then
+    apply_gsettings
+elif command -v dbus-run-session >/dev/null && command -v gsettings >/dev/null; then
+    dbus-run-session bash -c "$(declare -f apply_gsettings); apply_gsettings"
 else
-    warn "no D-Bus session bus; run again from inside a session to apply gsettings"
+    warn "no D-Bus session bus or dbus-run-session; run again from inside a session to apply gsettings"
 fi
 
 say "Clavis systemd user services"
