@@ -8,31 +8,30 @@ README.md
 {{- if not $profile -}}
 {{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
 {{-     $profile = "clavis" -}}
-{{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") -}}
+{{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") (eq .chezmoi.username "nyxuri-legacy") -}}
 {{-     $profile = "nyxuri" -}}
 {{-   else -}}
 {{-     $profile = "omarchy" -}}
 {{-   end -}}
 {{- end -}}
 
-# Exclude Clavis / Niri when not in clavis profile
+# Exclude Clavis / Niri specific dotfiles when not in clavis profile
 {{ if ne $profile "clavis" }}
 .config/niri/**
 .config/clavis/**
 .config/gtk-3.0/**
 .config/gtk-4.0/**
+.config/fcitx5/**
+.config/mpv/**
+.config/obsidian/**
+.config/environment.d/**
 .config/waybar/**
 .config/mako/**
 .config/fuzzel/**
 .config/thunderbird/**
 .icons/**
-.local/share/clavis/**
-.local/share/statindet-niri/**
-.local/share/fcitx5-matugen-theme/**
-.local/share/clavis-fish-theme/**
-.local/bin/clavis-mpvpaper.sh
-.local/bin/niri-dotfiles-postinstall
-.local/bin/optimize-wallpaper
+.local/bin/**
+.local/share/**
 Documents/**
 clavis-postinstall.sh
 {{ end }}
