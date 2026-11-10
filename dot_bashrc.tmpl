@@ -23,6 +23,8 @@ source "$OMARCHY_PATH/default/bash/rc"
 # Make an alias for invoking commands you use constantly
 # alias p='python'
 
+alias agy="$HOME/.local/bin/agy"
+
 # try: shared tries directory /zt (Omarchy's default/bash/init hardcodes ~/Work/tries,
 # which wins over TRY_PATH). Graduated tries still go to ~/Work.
 export TRY_PATH=/zt TRY_PROJECTS="$HOME/Work"
@@ -35,7 +37,6 @@ if command -v try &> /dev/null; then
 fi
 
 {{- if eq .chezmoi.username "rollo" }}
-alias agy="$HOME/.local/bin/agy"
 
 # --- SELLO DE GESTION DE DISCO SEGURO LUKS + BTRFS ---
 export DISCO_LUKS_UUID="a9d0a6e3-a102-4688-84f4-33b38f7b5320"
