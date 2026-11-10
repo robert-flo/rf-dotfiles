@@ -5,7 +5,11 @@
     {{- else }}
     "bannerSource": "",
     {{- end }}
+    {{- if stat "/z/wallpaper-collection" }}
+    "folder": "/z/wallpaper-collection",
+    {{- else }}
     "folder": "{{ .chezmoi.homeDir }}/.local/share/clavis/wallpapers",
+    {{- end }}
     "path": "{{ .chezmoi.homeDir }}/.local/share/clavis/wallpapers/statindet/wallhaven-rq6yqm.jpg",
     "pathLight": "",
     "pathDark": "",

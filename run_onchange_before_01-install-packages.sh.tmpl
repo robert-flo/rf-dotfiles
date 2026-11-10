@@ -92,3 +92,13 @@ if [[ -x /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager ]]; then
     $SUDO_CMD chgrp -R wheel /opt/android-sdk 2>/dev/null || true
   fi
 fi
+
+# Garantizar que /z/wallpaper-collection esté clonado para el repositorio central de fondos
+if [[ ! -d "/z/wallpaper-collection/.git" ]]; then
+  echo "==> [chezmoi] Clonando repositorio central de wallpapers en /z/wallpaper-collection..."
+  $SUDO_CMD mkdir -p /z/wallpaper-collection 2>/dev/null || true
+  $SUDO_CMD git clone --depth 1 https://github.com/robert-flo/wallpaper-collection.git /z/wallpaper-collection || true
+  $SUDO_CMD chgrp -R wheel /z/wallpaper-collection 2>/dev/null || true
+  $SUDO_CMD chmod -R g+rwX /z/wallpaper-collection 2>/dev/null || true
+  $SUDO_CMD chmod g+s /z/wallpaper-collection 2>/dev/null || true
+fi
