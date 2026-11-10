@@ -1,0 +1,31 @@
+{{- $profile := env "CHEZMOI_PROFILE" -}}
+{{- if not $profile -}}
+{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
+{{-     $profile = "clavis" -}}
+{{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") (eq .chezmoi.username "nyxuri-legacy") -}}
+{{-     $profile = "nyxuri" -}}
+{{-   else -}}
+{{-     $profile = "omarchy" -}}
+{{-   end -}}
+{{- end -}}
+
+{{- if eq $profile "nyxuri" }}
+# ==============================================================================
+# Nyxuri Desktop - Factory config.fish (Nyxuri Edge / Noctalia Shell)
+# ==============================================================================
+{{ include "dot_config/fish/nyxuri-config.fish" }}
+{{- else if eq $profile "clavis" }}
+# ==============================================================================
+# Clavis Desktop - Factory config.fish (Quickshell / Material 3)
+# ==============================================================================
+if status is-interactive
+    clavis-fish-theme init fish | source
+end
+{{- else }}
+# ==============================================================================
+# Omarchy / Admin - Factory config.fish
+# ==============================================================================
+if status is-interactive
+    # Commands to run in interactive sessions can go here
+end
+{{- end }}
