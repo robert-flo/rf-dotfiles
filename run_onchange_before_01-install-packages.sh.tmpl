@@ -81,3 +81,14 @@ if command -v archlinux-java >/dev/null 2>&1; then
     $SUDO_CMD archlinux-java set java-21-openjdk 2>/dev/null || true
   fi
 fi
+
+# Aprovisionar componentes base de Android SDK si sdkmanager está disponible
+if [[ -x /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager ]]; then
+  if [[ ! -d /opt/android-sdk/platforms/android-35 || ! -d /opt/android-sdk/build-tools/35.0.0 ]]; then
+    echo "==> [chezmoi] Aprovisionando componentes base de Android SDK (API 35, Build-Tools 35.0.0, Platform-Tools)..."
+    yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk \
+      "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
+    $SUDO_CMD chmod -R g+rwX /opt/android-sdk 2>/dev/null || true
+    $SUDO_CMD chgrp -R wheel /opt/android-sdk 2>/dev/null || true
+  fi
+fi
