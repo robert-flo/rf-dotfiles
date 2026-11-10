@@ -8,6 +8,9 @@ end
 set -gx TRY_PATH /zt
 set -gx TRY_PROJECTS ~/Work
 
+fish_add_path -g ~/.local/bin
+alias agy="$HOME/.local/bin/agy"
+
 if status is-interactive
     clavis-fish-theme init fish | source
     command -q try; and env SHELL=fish try init /zt | source
