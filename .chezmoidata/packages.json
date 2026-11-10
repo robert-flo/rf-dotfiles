@@ -17,6 +17,7 @@
       "clang",
       "cliphist",
       "cmake",
+      "cursor-bin",
       "ddcutil",
       "eza",
       "fastfetch",
@@ -92,6 +93,7 @@
       "ttf-material-symbols-variable",
       "vlc",
       "vlc-plugins-all",
+      "visual-studio-code-bin",
       "vulkan-headers",
       "waybar",
       "wl-clipboard",
@@ -119,7 +121,10 @@
       "ravn-webapps"
     ],
     "aur": [
+      "android-sdk-cmdline-tools-latest",
       "android-studio-canary",
+      "antigravity",
+      "antigravity-ide",
       "dotbare",
       "firebase-tools-bin",
       "google-chrome",
@@ -128,7 +133,8 @@
       "mpvpaper-git",
       "qt6-m3shapes-git",
       "splayer-next-bin",
-      "ttf-lxgw-wenkai-screen"
+      "ttf-lxgw-wenkai-screen",
+      "visual-studio-code-insiders-bin"
     ]
   }
 }
