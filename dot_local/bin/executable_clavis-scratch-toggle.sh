@@ -13,12 +13,12 @@ flock -n 9 || exit 0
 
 ACTIVE_WS=$(niri msg -j workspaces 2>/dev/null \
     | jq -r '(.[] | select(.is_focused == true) | .id) // (.[] | select(.is_active == true) | .id)' \
-    | head -n1)
+    | head -n1) || true
 
 read -r win_id win_ws < <(niri msg -j windows 2>/dev/null \
     | jq -r --arg id "$APP_ID" \
         '.[] | select(.app_id == $id) | "\(.id) \(.workspace_id)"' \
-    | head -n1)
+    | head -n1) || true
 
 spawn_kitty() {
     if command -v tmux >/dev/null 2>&1; then

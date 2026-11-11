@@ -11,6 +11,7 @@ fi
 SEARCH_DIRS=(
     "/z/wallpaper-collection/favorites"
     "/z/wallpaper-collection"
+    "/z/wallpaper-collection/video"
     "${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/favorites"
     "${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers"
 )

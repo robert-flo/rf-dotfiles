@@ -2,22 +2,21 @@
 # Clavis quick selection translator (English <-> Spanish)
 set -euo pipefail
 
-TEXT="$(wl-paste -p 2>/dev/null || true)"
+# Safely extract plain text from primary selection, falling back to standard clipboard
+TEXT="$(wl-paste -p -t text/plain 2>/dev/null || true)"
 if [[ -z "${TEXT// }" ]]; then
-    TEXT="$(wl-paste 2>/dev/null || true)"
+    TEXT="$(wl-paste -t text/plain 2>/dev/null || true)"
 fi
 
 if [[ -z "${TEXT// }" ]]; then
-    notify-send -a "Traductor" -i "accessories-dictionary" "Traductor" "No hay texto seleccionado en el portapapeles."
+    notify-send -a "Traductor" -i "accessories-dictionary" \
+        "Traductor ES ↔ EN" \
+        "ℹ️ Para traducir: Selecciona cualquier texto con el ratón (o cópialo) y pulsa Super + Alt + E."
     exit 0
 fi
 
-# Trim text if too long for notification title
-PREVIEW="${TEXT:0:80}"
-[[ ${#TEXT} -gt 80 ]] && PREVIEW="${PREVIEW}..."
-
-# Detect language
-DETECTED="$(trans -brief -no-ansi -id "$TEXT" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+# Detect language (force IPv4 with -4 to prevent IPv6 timeout)
+DETECTED="$(trans -4 -brief -no-ansi -id "$TEXT" 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
 
 if [[ "$DETECTED" == "es" ]]; then
     TARGET_LANG="en"
@@ -27,10 +26,10 @@ else
     LANG_LABEL="Inglés ➔ Español"
 fi
 
-TRANSLATED="$(trans -brief -no-ansi :"$TARGET_LANG" "$TEXT" 2>/dev/null || true)"
+# Translate with fast IPv4
+TRANSLATED="$(trans -4 -brief -no-ansi :"$TARGET_LANG" "$TEXT" 2>/dev/null || true)"
 
 if [[ -n "$TRANSLATED" ]]; then
-    # Copy translation to clipboard
     printf '%s' "$TRANSLATED" | wl-copy
     notify-send -a "Traductor" -i "accessories-dictionary" "🌐 $LANG_LABEL" "$TRANSLATED"
 else
