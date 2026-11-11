@@ -216,7 +216,7 @@ layout {
     // You can enable drop shadows for windows.
     shadow {
         // Uncomment the next line to enable shadows.
-        // on
+        on
 
         // By default, the shadow draws only around its window, and not behind it.
         // Uncomment this setting to make the shadow draw behind its window.
@@ -354,6 +354,16 @@ window-rule {
     clip-to-geometry true
 }
 
+// Scratchpad Terminal (Super+Shift+Enter toggle)
+window-rule {
+    match app-id=r"^scratchpad$"
+    open-floating true
+    default-column-width { proportion 0.75; }
+    default-window-height { proportion 0.75; }
+    geometry-corner-radius 16
+    clip-to-geometry true
+}
+
 binds {
     // Keys consist of modifiers separated by + signs, followed by an XKB key name
     // in the end. To find an XKB name for a particular key, you may use a program
@@ -371,7 +381,10 @@ binds {
 
     // Suggested binds for running programs: terminal, app launcher, screen locker.
     Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
-    Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }
+    Mod+Return hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
+    Mod+Shift+Return hotkey-overlay-title="Scratchpad Terminal: kitty" { spawn-sh "clavis-scratch-toggle.sh kitty"; }
+    Mod+D hotkey-overlay-title="Run Application: Orbit Radial Launcher" { spawn-sh "clavis-orbit-launcher.sh"; }
+    Mod+E hotkey-overlay-title="Open File Manager: nautilus" { spawn "nautilus"; }
     Super+Alt+L hotkey-overlay-title="Lock the Screen: swaylock" { spawn "swaylock"; }
 
     // Use spawn-sh to run a shell command. Do this if you need pipes, multiple commands, etc.
@@ -406,6 +419,7 @@ binds {
     // You can also move the mouse into the top-left hot corner,
     // or do a four-finger swipe up on a touchpad.
     Mod+O repeat=false { toggle-overview; }
+    Mod+Alt+Space repeat=false { toggle-overview; }
 
     Mod+Q repeat=false { close-window; }
 
@@ -417,6 +431,8 @@ binds {
     Mod+J     { focus-window-down; }
     Mod+K     { focus-window-up; }
     Mod+L     { focus-column-right; }
+    Mod+Z     { focus-column-left; }
+    Mod+X     { focus-column-right; }
 
     Mod+Ctrl+Left  { move-column-left; }
     Mod+Ctrl+Down  { move-window-down; }
@@ -608,6 +624,7 @@ binds {
     // Windows in this column will appear as vertical tabs,
     // rather than stacked on top of each other.
     Mod+W { toggle-column-tabbed-display; }
+    Mod+G { toggle-column-tabbed-display; }
 
     // Actions to switch layouts.
     // Note: if you uncomment these, make sure you do NOT have
@@ -618,6 +635,7 @@ binds {
     // Mod+Shift+Space { switch-layout "prev"; }
 
     Print { screenshot; }
+    Mod+Shift+S { screenshot; }
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
 
@@ -638,6 +656,29 @@ binds {
     // Powers off the monitors. To turn them back on, do any input like
     // moving the mouse or pressing any other key.
     Mod+Shift+P { power-off-monitors; }
+
+    // Hot reload Niri configuration
+    Mod+Alt+R { spawn "niri" "msg" "action" "load-config-file"; }
+
+    // Instant random wallpaper via Clavis Quickshell IPC
+    Mod+Ctrl+W repeat=false { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
+
+    // Night Mode / Eye Care toggle
+    Mod+Alt+N repeat=false { spawn-sh "clavis-toggle-night.sh"; }
+
+    // Quick selection translation (English <-> Spanish)
+    Mod+Alt+E repeat=false { spawn-sh "clavis-translate.sh"; }
+
+    // Quick wallpaper / video favorite slots (1..9)
+    Mod+Shift+1 { spawn "clavis-wallpaper-slot.sh" "1"; }
+    Mod+Shift+2 { spawn "clavis-wallpaper-slot.sh" "2"; }
+    Mod+Shift+3 { spawn "clavis-wallpaper-slot.sh" "3"; }
+    Mod+Shift+4 { spawn "clavis-wallpaper-slot.sh" "4"; }
+    Mod+Shift+5 { spawn "clavis-wallpaper-slot.sh" "5"; }
+    Mod+Shift+6 { spawn "clavis-wallpaper-slot.sh" "6"; }
+    Mod+Shift+7 { spawn "clavis-wallpaper-slot.sh" "7"; }
+    Mod+Shift+8 { spawn "clavis-wallpaper-slot.sh" "8"; }
+    Mod+Shift+9 { spawn "clavis-wallpaper-slot.sh" "9"; }
 }
 
 include "clavis/binds.kdl";
