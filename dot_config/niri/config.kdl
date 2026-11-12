@@ -590,11 +590,11 @@ binds {
     Mod+F { maximize-column; }
     Mod+Shift+F { fullscreen-window; }
 
-    // While maximize-column leaves gaps and borders around the window,
-    // maximize-window-to-edges doesn't: the window expands to the edges of the screen.
-    // This bind corresponds to normal window maximizing,
-    // e.g. by double-clicking on the titlebar.
-    Mod+M { maximize-window-to-edges; }
+    // Toggle maximize all windows in active workspace to screen edges (no gaps)
+    Mod+M repeat=false hotkey-overlay-title="Toggle Maximize All Windows to Edges (Workspace)" { spawn-sh "clavis-toggle-maximize-all.sh"; }
+
+    // Toggle single focused window to screen edges
+    Mod+Shift+M repeat=false hotkey-overlay-title="Toggle Maximize Window to Edges" { maximize-window-to-edges; }
 
     // Expand the focused column to space not taken up by other fully visible columns.
     // Makes the column "fill the rest of the space".
