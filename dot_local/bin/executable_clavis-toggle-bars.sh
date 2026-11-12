@@ -63,12 +63,12 @@ except Exception as e:
 # Notification
 if new_state:
     subprocess.run([
-        "notify-send", "-a", "Clavis", "-i", "view-restore", "-t", "2000",
-        "Escritorio Clavis", "Barra superior y Dock restaurados"
+        "notify-send", "-a", "Clavis", "-i", "preferences-system-windows", "-t", "3",
+        "Modo Normal", "Barra y Dock restaurados"
     ], check=False)
 else:
     subprocess.run([
-        "notify-send", "-a", "Clavis", "-i", "view-fullscreen", "-t", "2000",
-        "Modo Inmersivo", "Barra superior y Dock ocultos (100% pantalla)"
+        "notify-send", "-a", "Clavis", "-i", "preferences-desktop-display", "-t", "3",
+        "Modo Inmersivo", "Barra y Dock ocultos"
     ], check=False)
 EOF
