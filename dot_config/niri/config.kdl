@@ -680,6 +680,9 @@ binds {
     // Quick date and time OSD notification
     Mod+Ctrl+Alt+T repeat=false hotkey-overlay-title="Date & Time Notice" { spawn-sh "clavis-time-notice.sh"; }
 
+    // Toggle Zen / Immersive Mode (hide/show top bar and bottom dock)
+    Mod+B repeat=false hotkey-overlay-title="Toggle Immersive Mode (Bars & Dock)" { spawn-sh "clavis-toggle-bars.sh"; }
+
     // Quick wallpaper / video favorite slots (1..9)
     Mod+Shift+1 { spawn "clavis-wallpaper-slot.sh" "1"; }
     Mod+Shift+2 { spawn "clavis-wallpaper-slot.sh" "2"; }
