@@ -277,6 +277,7 @@ spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
 // safe: it does nothing if the watcher already runs, otherwise it starts the unit
 // (or a detached watcher where the unit is missing).
 spawn-at-startup "key" "clipboard" "--daemon"
+spawn-at-startup "clavis-sticky-daemon.sh"
 
 // To run a shell command (with variables, pipes, etc.), use spawn-sh-at-startup:
 // spawn-sh-at-startup "qs -c ~/source/qs/MyAwesomeShell"
@@ -326,12 +327,10 @@ window-rule {
     default-column-width {}
 }
 
-// Open the Firefox picture-in-picture player as floating by default.
+// Open browser Picture-in-Picture players as floating by default (Firefox, Zen, Chrome, Chromium, Brave, Edge).
 window-rule {
-    // This app-id regular expression will work for both:
-    // - host Firefox (app-id is "firefox")
-    // - Flatpak Firefox (app-id is "org.mozilla.firefox")
-    match app-id=r#"firefox$"# title="^Picture-in-Picture$"
+    match app-id=r#"(?i)(firefox|zen|google-chrome|chrome|chromium|brave|edge)"# title=r#"(?i)^picture[- ]in[- ]picture$"#
+    match title=r#"(?i)^picture[- ]in[- ]picture$"#
     open-floating true
 }
 
@@ -623,6 +622,9 @@ binds {
     // Move the focused window between the floating and the tiling layout.
     Mod+V       { toggle-window-floating; }
     Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+
+    // Toggle sticky window (make floating and follow across all workspaces)
+    Mod+S repeat=false hotkey-overlay-title="Toggle Window Sticky (Follow Workspaces)" { spawn-sh "clavis-sticky-toggle.sh"; }
 
     // Toggle tabbed column display mode.
     // Windows in this column will appear as vertical tabs,
