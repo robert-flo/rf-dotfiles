@@ -8,7 +8,7 @@ AGENTS.md
 # Auto-detect profile based on username or CHEZMOI_PROFILE
 {{- $profile := env "CHEZMOI_PROFILE" -}}
 {{- if not $profile -}}
-{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
+{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
 {{-     $profile = "clavis" -}}
 {{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") (eq .chezmoi.username "nyxuri-legacy") -}}
 {{-     $profile = "nyxuri" -}}
