@@ -42,10 +42,15 @@ if os.path.exists(dock_path):
 
 new_state = not bar_enabled
 
-# Update config.json
+# Update config.json (Bar and Keystone central island)
 if "bar" not in cfg:
     cfg["bar"] = {}
 cfg["bar"]["enabled"] = new_state
+
+if "keystone" not in cfg:
+    cfg["keystone"] = {}
+cfg["keystone"]["enabled"] = new_state
+
 try:
     atomic_write_json(cfg_path, cfg)
 except Exception as e:
@@ -64,11 +69,11 @@ except Exception as e:
 if new_state:
     subprocess.run([
         "notify-send", "-a", "Clavis", "-i", "preferences-system-windows", "-t", "3",
-        "Modo Normal", "Barra y Dock restaurados"
+        "Modo Normal", "Barra, Isla y Dock restaurados"
     ], check=False)
 else:
     subprocess.run([
         "notify-send", "-a", "Clavis", "-i", "preferences-desktop-display", "-t", "3",
-        "Modo Inmersivo", "Barra y Dock ocultos"
+        "Modo Inmersivo", "Barra, Isla y Dock ocultos"
     ], check=False)
 EOF
