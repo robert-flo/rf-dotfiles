@@ -388,6 +388,7 @@ binds {
     // Suggested binds for running programs: terminal, app launcher, screen locker.
     Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
     Mod+Return hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
+    Mod+Grave hotkey-overlay-title="Scratchpad Terminal: kitty" { spawn-sh "clavis-scratch-toggle.sh kitty"; }
     Mod+Shift+Return hotkey-overlay-title="Scratchpad Terminal: kitty" { spawn-sh "clavis-scratch-toggle.sh kitty"; }
     Mod+Ctrl+Return hotkey-overlay-title="Tiling Terminal Session: Herdr" { spawn "kitty" "herdr"; }
     Mod+D hotkey-overlay-title="Run Application: Orbit Radial Launcher" { spawn-sh "clavis-orbit-launcher.sh"; }
@@ -636,8 +637,17 @@ binds {
     // Toggle tabbed column display mode.
     // Windows in this column will appear as vertical tabs,
     // rather than stacked on top of each other.
-    Mod+W { toggle-column-tabbed-display; }
     Mod+G { toggle-column-tabbed-display; }
+
+    // Instant random wallpaper via Clavis Quickshell IPC
+    Mod+W repeat=false hotkey-overlay-title="Wallpaper: Random" { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
+
+    // Clavis Spotlight Clipboard Manager
+    Mod+P repeat=false hotkey-overlay-title="Clavis Clipboard Manager" { spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "clipboard"; }
+
+    // Keystone Dynamic Island: Hub & Tools
+    Mod+Apostrophe repeat=false hotkey-overlay-title="Keystone Central Hub" { spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "hub"; }
+    Mod+Shift+Apostrophe repeat=false hotkey-overlay-title="Keystone Tools" { spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "tools"; }
 
     // Actions to switch layouts.
     // Note: if you uncomment these, make sure you do NOT have
