@@ -334,6 +334,13 @@ window-rule {
     open-floating true
 }
 
+// Open media players (mpv, vlc) as floating windows by default.
+// Does not affect mpvpaper which runs as a Wayland layer-shell background surface.
+window-rule {
+    match app-id=r#"^(mpv|vlc)$"#
+    open-floating true
+}
+
 // Example: block out two password managers from screen capture.
 // (This example rule is commented out with a "/-" in front.)
 /-window-rule {
