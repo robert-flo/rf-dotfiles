@@ -21,7 +21,11 @@ read -r win_id win_ws < <(niri msg -j windows 2>/dev/null \
     | head -n1) || true
 
 spawn_kitty() {
-    if command -v tmux >/dev/null 2>&1; then
+    if command -v herdr >/dev/null 2>&1; then
+        niri msg action spawn -- \
+            kitty --app-id "$APP_ID" --title "Scratchpad" \
+            herdr --session scratchpad
+    elif command -v tmux >/dev/null 2>&1; then
         niri msg action spawn -- \
             kitty --app-id "$APP_ID" --title "Scratchpad" \
             tmux new-session -A -D -s "$TMUX_SESSION" \
