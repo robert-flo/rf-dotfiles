@@ -303,15 +303,8 @@ screenshot-path "/zt/Screenshot from %Y-%m-%d %H-%M-%S.png"
 // screenshot-path null
 
 // Animation settings.
-// The wiki explains how to configure individual animations:
-// https://niri-wm.github.io/niri/Configuration:-Animations
-animations {
-    // Uncomment to turn off all animations.
-    // off
-
-    // Slow down all animations by this factor. Values below 1 speed them up instead.
-    // slowdown 3.0
-}
+// Managed dynamically via clavis-cycle-animations.sh (Presets A, B, C)
+include "animations.kdl"
 
 // Window rules let you adjust behavior for individual windows.
 // Find more information on the wiki:
@@ -523,10 +516,10 @@ binds {
 
     // Usually scrolling up and down with Shift in applications results in
     // horizontal scrolling; these binds replicate that.
-    Mod+Shift+WheelScrollDown      { focus-column-right; }
-    Mod+Shift+WheelScrollUp        { focus-column-left; }
-    Mod+Ctrl+Shift+WheelScrollDown { move-column-right; }
-    Mod+Ctrl+Shift+WheelScrollUp   { move-column-left; }
+    Mod+Shift+WheelScrollDown      cooldown-ms=150 { focus-column-right; }
+    Mod+Shift+WheelScrollUp        cooldown-ms=150 { focus-column-left; }
+    Mod+Ctrl+Shift+WheelScrollDown cooldown-ms=150 { move-column-right; }
+    Mod+Ctrl+Shift+WheelScrollUp   cooldown-ms=150 { move-column-left; }
 
     // Similarly, you can bind touchpad scroll "ticks".
     // Touchpad scrolling is continuous, so for these binds it is split into
@@ -633,6 +626,9 @@ binds {
     // Windows in this column will appear as vertical tabs,
     // rather than stacked on top of each other.
     Mod+G { toggle-column-tabbed-display; }
+
+    // Cycle Window & Column Animation Presets (A: Bouncy -> B: Smooth -> C: Snappy)
+    Mod+Y repeat=false hotkey-overlay-title="Cycle Window & Column Animations (A/B/C)" { spawn-sh "clavis-cycle-animations.sh"; }
 
     // Instant random wallpaper via Clavis Quickshell IPC
     Mod+W repeat=false hotkey-overlay-title="Wallpaper: Random" { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
