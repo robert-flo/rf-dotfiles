@@ -1,0 +1,16 @@
+output "DP-2" {
+    mode "1920x1080@60.000"
+    scale 1.0
+    position x=0 y=0
+    focus-at-startup
+}
+
+layer-rule {
+    match namespace="awww-daemonoverview"
+    place-within-backdrop true
+}
+
+layer-rule {
+    match namespace="^clavis-overview-wallpaper$"
+    place-within-backdrop true
+}
