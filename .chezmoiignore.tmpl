@@ -7,6 +7,11 @@ AGENTS.md
 .personal/**
 .config/fish/nyxuri-config.fish
 
+# Ignore video wallpapers symlink if shared collection is not present
+{{ if not (stat "/z/wallpaper-collection/video") }}
+.local/share/clavis/wallpapers/video
+{{ end }}
+
 # Auto-detect profile based on username or CHEZMOI_PROFILE
 {{- $profile := env "CHEZMOI_PROFILE" -}}
 {{- if not $profile -}}

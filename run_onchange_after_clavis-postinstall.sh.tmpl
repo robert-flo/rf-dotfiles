@@ -7,7 +7,7 @@
 {{- end }}
 
 {{ if eq $profile "clavis" }}
-# config.kdl hash: {{ include "dot_config/niri/config.kdl" | sha256sum }}
+# config.kdl hash: {{ include ".personal/niri/config.kdl" | sha256sum }}
 # clavis config hash: {{ include "dot_config/clavis/config.json.tmpl" | sha256sum }}
 set -euo pipefail
 

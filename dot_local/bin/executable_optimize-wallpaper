@@ -2,8 +2,13 @@
 # Optimiza vídeos para fondos de pantalla (1080p, 30 FPS, sin audio, aceleración por hardware Intel VA-API).
 set -euo pipefail
 
-WP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/video"
-ORIGINALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/video_originals"
+if [[ -d "/z/wallpaper-collection/video" ]]; then
+    WP_DIR="/z/wallpaper-collection/video"
+    ORIGINALS_DIR="/z/wallpaper-collection/video_originals"
+else
+    WP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/video"
+    ORIGINALS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/video_originals"
+fi
 
 usage() {
     echo "Uso: $0 <ruta-al-video> [ruta-de-salida]"
