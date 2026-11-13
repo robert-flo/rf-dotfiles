@@ -3,6 +3,8 @@ README.md
 AGENTS.md
 .git*
 .chezmoidata/**
+.upstream/**
+.personal/**
 .config/fish/nyxuri-config.fish
 
 # Auto-detect profile based on username or CHEZMOI_PROFILE
@@ -19,8 +21,8 @@ AGENTS.md
 {{-   end -}}
 {{- end -}}
 
-# Exclude Clavis / Niri specific dotfiles when not in clavis profile
-{{ if ne $profile "clavis" }}
+# Exclude personal Clavis / Niri when not in clavis or clavis-upstream profile
+{{ if and (ne $profile "clavis") (ne $profile "clavis-upstream") }}
 .config/niri/**
 .config/clavis/**
 .config/gtk-3.0/**
@@ -37,6 +39,40 @@ AGENTS.md
 .local/share/**
 clavis-postinstall.sh
 .config/systemd/**
+{{ end }}
+
+# When in clavis-upstream (pure upstream), exclude personal workstation customization
+{{ if eq $profile "clavis-upstream" }}
+Documents/**
+dot_Work/**
+symlink_Cloud
+symlink__boveda
+symlink_Idalia
+symlink_Uploads-Gracie
+symlink_Vaughan
+.config/obsidian/**
+.config/thunderbird/**
+.config/rclone/**
+.zen/**
+.zshrc
+clavis-postinstall.sh
+.local/bin/**
+.config/niri/clavis/**
+.config/niri/liquidbird.kdl
+.config/niri/obsidian-violet.kdl
+.config/niri/statindet-*.kdl
+.config/gtk-3.0/**
+.config/gtk-4.0/**
+.config/waybar/**
+.config/mako/**
+.config/fuzzel/**
+.config/fish/**
+.config/alacritty/**
+.config/tmux/**
+.config/mimeapps.list
+.config/hypr/**
+.config/omarchy/**
+.local/state/omarchy/**
 {{ end }}
 
 # Exclude Omarchy / Hyprland when not in omarchy profile

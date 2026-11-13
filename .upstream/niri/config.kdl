@@ -1,0 +1,59 @@
+environment {
+    XDG_CONFIG_DIRS "/opt/clavis-upstream/etc/xdg:/etc/xdg"
+    QML2_IMPORT_PATH "/opt/clavis-upstream/lib/qt6/qml:/usr/lib/qt6/qml"
+    XMODIFIERS "@im=fcitx"
+}
+
+include "binds.kdl"
+include "colors.kdl"
+include "theme.kdl"
+include "output.kdl"
+include "startup.kdl"
+include "windowrule.kdl"
+include "animations.kdl"
+
+input {
+    keyboard {
+        xkb {}
+        numlock
+    }
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+
+layout {
+    gaps 16
+    center-focused-column "never"
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+    default-column-width { proportion 0.5; }
+    focus-ring { width 2; }
+    shadow {
+        softness 30
+        spread 5
+        offset x=0 y=5
+        color "#0007"
+    }
+}
+
+
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+window-rule {
+    match app-id=r#"^org\.wezfurlong\.wezterm$"#
+    default-column-width {}
+}
+
+window-rule {
+    match app-id=r#"firefox$"# title="^Picture-in-Picture$"
+    open-floating true
+}
+
+debug {
+    wait-for-frame-completion-before-queueing
+}

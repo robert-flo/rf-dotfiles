@@ -1,3 +1,6 @@
+{{- if eq .chezmoi.username "niri-upstream" -}}
+{{ include ".upstream/clavis/config.json" }}
+{{- else -}}
 {
   "wallpaper": {
     {{- if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") }}
@@ -278,3 +281,4 @@
     "gridVisibleWhileDragging": true
   }
 }
+{{- end }}

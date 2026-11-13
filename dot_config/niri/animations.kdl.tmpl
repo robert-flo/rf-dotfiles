@@ -1,0 +1,5 @@
+{{- if eq .chezmoi.username "niri-upstream" -}}
+{{ include ".upstream/niri/animations.kdl" }}
+{{- else -}}
+{{ include ".personal/niri/animations.kdl" }}
+{{- end -}}
