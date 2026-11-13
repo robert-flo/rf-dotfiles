@@ -14,8 +14,8 @@ case "$CURRENT" in
     A)
         NEXT="B"
         TITLE="Modo B: Cinemática Fluida"
-        DESC="Curva cúbica suave (350 ms, ease-out-cubic)"
-        ICON="media-playback-start"
+        DESC="Desaceleración sedosa (350 ms, ease-out-cubic)"
+        ICON="preferences-desktop-display"
         CONTENT='// Modo B: Cinemática Fluida (Ultra Smooth)
 animations {
     horizontal-view-movement {
@@ -32,29 +32,29 @@ animations {
         NEXT="C"
         TITLE="Modo C: Snappy Inercial"
         DESC="Resorte con inercia elegante y sin oscilación"
-        ICON="system-run"
+        ICON="speedometer"
         CONTENT='// Modo C: Snappy Inercial (Con peso, sin rebote)
 animations {
     horizontal-view-movement {
-        spring damping-ratio=0.94 stiffness=520 epsilon=0.0001
+        spring damping-ratio=0.95 stiffness=520 epsilon=0.0001
     }
     window-movement {
-        spring damping-ratio=0.94 stiffness=550 epsilon=0.0001
+        spring damping-ratio=0.95 stiffness=550 epsilon=0.0001
     }
 }'
         ;;
     *)
         NEXT="A"
         TITLE="Modo A: Elástica Dinámica (Default)"
-        DESC="Resorte físico orgánico con sutil rebote (bouncy)"
-        ICON="view-restore"
+        DESC="Resorte elástico orgánico con micro-rebote fluido"
+        ICON="preferences-system-windows"
         CONTENT='// Modo A: Elástica Dinámica (Predeterminado)
 animations {
     horizontal-view-movement {
-        spring damping-ratio=0.82 stiffness=650 epsilon=0.0001
+        spring damping-ratio=0.78 stiffness=380 epsilon=0.0001
     }
     window-movement {
-        spring damping-ratio=0.85 stiffness=700 epsilon=0.0001
+        spring damping-ratio=0.78 stiffness=380 epsilon=0.0001
     }
 }'
         ;;
@@ -71,10 +71,11 @@ fi
 # Notificación visual temporal sincronizada
 if command -v notify-send &>/dev/null; then
     notify-send \
-        --app-name="Clavis Motion" \
-        --icon="$ICON" \
-        --expire-time=2200 \
-        --hint="string:x-canonical-private-synchronous:niri-animation-mode" \
+        -a "Clavis" \
+        -i "$ICON" \
+        -t 2 \
+        -h boolean:transient:true \
+        -h string:x-canonical-private-synchronous:niri-animation-mode \
         "Animación Niri" \
         "<b>$TITLE</b>\n$DESC"
 fi
