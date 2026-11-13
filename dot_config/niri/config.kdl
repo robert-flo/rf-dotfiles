@@ -670,8 +670,8 @@ binds {
     // moving the mouse or pressing any other key.
     Mod+Shift+P { power-off-monitors; }
 
-    // Hot reload Niri configuration
-    Mod+Alt+R { spawn-sh "niri msg action load-config-file && notify-send -a 'Niri' -i 'software-update-available' 'Configuración de Niri' 'Configuración recargada correctamente en caliente'"; }
+    // Hot reload Niri & Clavis Shell in Place
+    Mod+Alt+R repeat=false hotkey-overlay-title="Reload Desktop: Niri & Clavis Shell" { spawn-sh "clavis-reload.sh"; }
 
     // Instant random wallpaper via Clavis Quickshell IPC
     Mod+Ctrl+W repeat=false { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
