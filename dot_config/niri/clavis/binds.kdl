@@ -27,9 +27,6 @@ binds {
     Mod+A repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "quicksettings";
     };
-    Mod+Ctrl+Comma repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "control-center" "toggle" "general";
-    };
     Mod+Shift+W repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "hub";
     };
@@ -50,5 +47,13 @@ binds {
 
     Super+F4 repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "tools";
+    };
+
+    Super+F5 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "weather";
+    };
+
+    Super+F6 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "control-center" "toggle" "account";
     };
 };
