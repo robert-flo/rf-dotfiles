@@ -40,8 +40,10 @@ EXT="${FOUND##*.}"
 
 case "${EXT,,}" in
     mp4|webm|mkv)
-        # Video wallpaper via mpvpaper
-        if command -v clavis-mpvpaper.sh >/dev/null 2>&1; then
+        # Video wallpaper via Quickshell IPC (manages mpvpaper, theme generation, and hides static layer)
+        if pgrep -f "qs.*clavis" >/dev/null 2>&1; then
+            qs -c clavis ipc call wallpaper set "$FOUND" >/dev/null 2>&1 || true
+        elif command -v clavis-mpvpaper.sh >/dev/null 2>&1; then
             clavis-mpvpaper.sh apply "$FOUND"
         elif [[ -x "$HOME/.local/bin/clavis-mpvpaper.sh" ]]; then
             "$HOME/.local/bin/clavis-mpvpaper.sh" apply "$FOUND"
