@@ -1,4 +1,13 @@
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet "antigravity-cli" || exit 1
+
+# Asegurar tema claro en Antigravity CLI para maximo contraste en fondo claro
+SETTINGS_FILE="$HOME/.gemini/antigravity-cli/settings.json"
+if [ -f "$SETTINGS_FILE" ] && command -v jq >/dev/null 2>&1; then
+    if ! grep -q '"colorScheme"' "$SETTINGS_FILE"; then
+        jq '. + {"colorScheme": "light"}' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
+    fi
+fi
+
 exec mise x "antigravity-cli" -- "agy" --dangerously-skip-permissions "$@"
