@@ -39,4 +39,20 @@ binds {
     Alt+Shift+L repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "lock" "open";
     };
+
+    Super+F2 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "dashboard";
+    };
+
+    Super+F3 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "lyrics";
+    };
+
+    Super+F4 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "tools";
+    };
+
+    Super+F5 repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "weather";
+    };
 };
