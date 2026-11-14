@@ -1,3 +1,15 @@
 {{- if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "niri-upstream") -}}
-{{ include ".upstream/elio/theme.toml" }}
+{{- $mode := "dark" -}}
+{{- $clavisCfg := joinPath .chezmoi.homeDir ".config/clavis/config.json" -}}
+{{- if stat $clavisCfg -}}
+  {{- $parsed := include $clavisCfg | fromJson -}}
+  {{- if and $parsed $parsed.theme $parsed.theme.mode -}}
+    {{- $mode = $parsed.theme.mode -}}
+  {{- end -}}
+{{- end -}}
+{{- if eq $mode "light" -}}
+{{ include ".upstream/elio/theme-light.toml" }}
+{{- else -}}
+{{ include ".upstream/elio/theme-dark.toml" }}
+{{- end -}}
 {{- end -}}
