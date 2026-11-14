@@ -235,6 +235,14 @@ Por defecto, casi todas asumen una terminal oscura y renderizan el texto plano y
      * Si usa nombre de tema: seleccionar `catppuccin-latte`, `github-light` o `solarized-light`.
      * Si detecta por terminal: asegurarse de que la variable `COLORFGBG="0;15"` esté presente en el shell para indicar fondo claro a las herramientas basadas en terminfo.
 
+5. **Yazi (`~/.config/yazi/theme.toml`):**
+   * Prevenir colores `_fixed` o pasteles en `[filetype].rules`.
+   * Mapear imágenes a violeta joya (`#7c3aed`), media a teal (`#0e7490`), archivos a ámbar (`#b45309`), documentos a azul zafiro (`#0969da`), ejecutables a rojo rubí (`#d20f39`) y carpetas a azul real en negrita (`#1e66f5`).
+
+6. **Elio File Manager (`~/.config/elio/theme.toml`):**
+   * `[palette]`: Fondo cálido `bg = "#eff1f5"`, paneles `panel = "#eff1f5"`, texto carbón `text = "#3a3d52"`, selección `selected_bg = "#ccd0da"`, borde seleccionado `selected_border = "#1e66f5"`, acento `accent = "#1e66f5"`.
+   * `[classes]`: Colores de clases consistentes con el estándar (carpetas `#1e66f5`, imágenes `#7c3aed`, media `#0e7490`, docs `#0f766e`, archivos `#b45309`, código `#0969da`).
+
 ---
 
 ## 5. Script de Verificación Rápida
