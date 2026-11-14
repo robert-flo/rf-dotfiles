@@ -583,9 +583,6 @@ binds {
     Mod+F { maximize-column; }
     Mod+Shift+F { fullscreen-window; }
 
-    // Toggle maximize all windows in active workspace to screen edges (no gaps)
-    Mod+M repeat=false hotkey-overlay-title="Toggle Maximize All Windows to Edges (Workspace)" { spawn-sh "clavis-toggle-maximize-all.sh"; }
-
     // Toggle single focused window to screen edges
     Mod+Shift+M repeat=false hotkey-overlay-title="Toggle Maximize Window to Edges" { maximize-window-to-edges; }
 
@@ -625,9 +622,6 @@ binds {
     // rather than stacked on top of each other.
     Mod+G { toggle-column-tabbed-display; }
 
-    // Cycle Window & Column Animation Presets (A: Bouncy -> B: Smooth -> C: Snappy)
-    Mod+Y repeat=false hotkey-overlay-title="Cycle Window & Column Animations (A/B/C)" { spawn-sh "clavis-cycle-animations.sh"; }
-
     // Instant random wallpaper via Clavis Quickshell IPC
     Mod+W repeat=false hotkey-overlay-title="Wallpaper: Random" { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
 
@@ -650,7 +644,6 @@ binds {
     Mod+Shift+S { screenshot; }
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
-    Mod+Ctrl+Print { spawn "omarchy-capture-text"; }
 
     // Applications such as remote-desktop clients and software KVM switches may
     // request that niri stops processing the keyboard shortcuts defined here
@@ -682,17 +675,8 @@ binds {
     // Quick selection translation (English <-> Spanish)
     Mod+Alt+E repeat=false { spawn-sh "clavis-translate.sh"; }
 
-    // Quick emoji picker (fuzzel + wl-copy)
-    Mod+Ctrl+E repeat=false hotkey-overlay-title="Quick Emoji Picker" { spawn-sh "clavis-emoji-picker.sh"; }
-
-    // Quick CAVA GLSL Shader Visualizer Menu
-    Mod+Ctrl+C repeat=false hotkey-overlay-title="Cava Audio Visualizer (Shaders)" { spawn-sh "cava-glsl -m"; }
-
     // Quick date and time OSD notification
     Mod+Ctrl+Alt+T repeat=false hotkey-overlay-title="Date & Time Notice" { spawn-sh "clavis-time-notice.sh"; }
-
-    // Toggle Zen / Immersive Mode (hide/show top bar and bottom dock)
-    Mod+B repeat=false hotkey-overlay-title="Toggle Immersive Mode (Bars & Dock)" { spawn-sh "clavis-toggle-bars.sh"; }
 
     // Quick wallpaper / video favorite slots (1..9)
     Mod+Shift+1 { spawn "clavis-wallpaper-slot.sh" "1"; }

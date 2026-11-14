@@ -56,4 +56,28 @@ binds {
     Super+F6 repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "control-center" "toggle" "account";
     };
+
+    Super+F7 repeat=false {
+        spawn-sh "cava-glsl -m";
+    };
+
+    Super+F8 repeat=false {
+        spawn "omarchy-capture-text";
+    };
+
+    Super+F9 repeat=false {
+        spawn-sh "clavis-emoji-picker.sh";
+    };
+
+    Super+F10 repeat=false {
+        spawn-sh "clavis-cycle-animations.sh";
+    };
+
+    Super+F11 repeat=false {
+        spawn-sh "clavis-toggle-bars.sh";
+    };
+
+    Super+F12 repeat=false {
+        spawn-sh "clavis-toggle-maximize-all.sh";
+    };
 };
