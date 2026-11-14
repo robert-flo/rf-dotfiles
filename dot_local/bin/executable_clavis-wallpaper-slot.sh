@@ -9,30 +9,36 @@ if [[ -z "$SLOT" || ! "$SLOT" =~ ^[1-9]$ ]]; then
 fi
 
 SEARCH_DIRS=(
-    "/z/wallpaper-collection/favorites"
     "/z/wallpaper-collection"
     "/z/wallpaper-collection/video"
-    "${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/favorites"
     "${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/clavis/wallpapers/video"
 )
 
-EXTENSIONS=("png" "jpg" "jpeg" "webp" "mp4" "webm" "mkv")
+EXTENSIONS=("mp4" "webm" "mkv" "png" "jpg" "jpeg" "webp")
 
-FOUND=""
+# Collect all matching files for the requested slot
+CANDIDATES=()
 for dir in "${SEARCH_DIRS[@]}"; do
     [[ -d "$dir" ]] || continue
     for ext in "${EXTENSIONS[@]}"; do
         candidate="$dir/$SLOT.$ext"
         if [[ -f "$candidate" ]]; then
-            FOUND="$candidate"
-            break 2
+            CANDIDATES+=("$candidate")
         fi
     done
 done
 
-if [[ -z "$FOUND" ]]; then
-    notify-send -a "Clavis" -i "dialog-warning" "Fondo de Pantalla" "No se encontró el archivo del slot $SLOT (ej. $SLOT.png o $SLOT.mp4 en /z/wallpaper-collection/favorites/)"
+if [[ ${#CANDIDATES[@]} -eq 0 ]]; then
+    notify-send -a "Clavis" -i "dialog-warning" "Fondo de Pantalla" "No se encontró ningún archivo para el slot $SLOT (ej. $SLOT.png o $SLOT.mp4 en /z/wallpaper-collection/ o video/)"
     exit 0
+fi
+
+# If multiple files match (e.g. video and image with same number), the newest modified wins
+if [[ ${#CANDIDATES[@]} -eq 1 ]]; then
+    FOUND="${CANDIDATES[0]}"
+else
+    FOUND="$(ls -t "${CANDIDATES[@]}" | head -n1)"
 fi
 
 BASENAME="$(basename "$FOUND")"
