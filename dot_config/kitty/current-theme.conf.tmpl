@@ -3,7 +3,7 @@
 {{- $clavisCfg := joinPath .chezmoi.homeDir ".config/clavis/config.json" -}}
 {{- if stat $clavisCfg -}}
   {{- $parsed := include $clavisCfg | fromJson -}}
-  {{- if and $parsed $parsed.theme $parsed.theme.mode -}}
+  {{- if and (hasKey $parsed "theme") (hasKey $parsed.theme "mode") -}}
     {{- $mode = $parsed.theme.mode -}}
   {{- end -}}
 {{- end -}}
