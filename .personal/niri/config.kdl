@@ -596,7 +596,7 @@ binds {
     Mod+C { center-column; }
 
     // Center all fully visible columns on screen.
-    Mod+Ctrl+C { center-visible-columns; }
+    Mod+Shift+C { center-visible-columns; }
 
     // Finer width adjustments.
     // This command can also:
@@ -684,6 +684,9 @@ binds {
 
     // Quick emoji picker (fuzzel + wl-copy)
     Mod+Ctrl+E repeat=false hotkey-overlay-title="Quick Emoji Picker" { spawn-sh "clavis-emoji-picker.sh"; }
+
+    // Quick CAVA GLSL Shader Visualizer Menu
+    Mod+Ctrl+C repeat=false hotkey-overlay-title="Cava Audio Visualizer (Shaders)" { spawn-sh "cava-glsl -m"; }
 
     // Quick date and time OSD notification
     Mod+Ctrl+Alt+T repeat=false hotkey-overlay-title="Date & Time Notice" { spawn-sh "clavis-time-notice.sh"; }
