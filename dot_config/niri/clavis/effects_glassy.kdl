@@ -1,0 +1,26 @@
+// Clavis Window Effects: Glassy Transparency & Blur (Nyxuri inspired)
+window-rule {
+    opacity 0.95
+    background-effect {
+        blur true
+        xray false
+    }
+}
+
+window-rule {
+    match is-focused=false
+    opacity 0.88
+}
+
+// Preserve full opacity for media players
+window-rule {
+    match app-id=r"(?i)(mpv|splayer)"
+    opacity 1.0
+}
+
+blur {
+    passes 3
+    offset 2.3
+    noise 0.001
+    saturation 1.8
+}
