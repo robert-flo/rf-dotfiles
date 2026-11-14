@@ -3,20 +3,23 @@ binds {
     Mod+Space repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "toggle";
     };
-    Mod+Slash repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "shortcut-map" "toggle";
-    };
-    Mod+BackSpace repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "power-menu" "toggle";
-    };
     Mod+Shift+Space repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "web";
+        spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "apps";
+    };
+    Mod+Ctrl+Space repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "commands";
     };
     Mod+Alt+V repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "clipboard";
     };
     Mod+Alt+W repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "wallpapers";
+    };
+    Mod+Slash repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "shortcut-map" "toggle";
+    };
+    Mod+BackSpace repeat=false {
+        spawn "qs" "-c" "clavis" "ipc" "call" "power-menu" "toggle";
     };
     Mod+N repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "dashboard";
