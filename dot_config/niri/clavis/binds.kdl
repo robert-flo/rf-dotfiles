@@ -51,8 +51,4 @@ binds {
     Super+F4 repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "tools";
     };
-
-    Super+F5 repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "weather";
-    };
 };
