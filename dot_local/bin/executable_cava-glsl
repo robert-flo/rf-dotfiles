@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Runner para Cava en modo acelerado por GPU (SDL / Shaders GLSL)
+set -euo pipefail
+
+SHADER_DIR="$HOME/.config/cava/shaders"
+CONFIG_BASE="$HOME/.config/cava/config-glsl"
+
+if [[ ! -d "$SHADER_DIR" ]]; then
+    printf 'Error: No se encontró el directorio de shaders en %s\n' "$SHADER_DIR" >&2
+    exit 1
+fi
+
+mapfile -t available_shaders < <(find "$SHADER_DIR" -maxdepth 1 -name "*.frag" -exec basename {} .frag \; | sort)
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    printf 'Uso: cava-glsl [nombre_shader]\n\n'
+    printf 'Lanza Cava renderizado por GPU mediante OpenGL/SDL2.\n\n'
+    printf 'Shaders disponibles en %s:\n' "$SHADER_DIR"
+    for s in "${available_shaders[@]}"; do
+        printf '  • %s\n' "$s"
+    done
+    printf '\nEjemplos:\n'
+    printf '  cava-glsl eye_of_phi\n'
+    printf '  cava-glsl bar_spectrum\n'
+    printf '  cava-glsl northern_lights\n'
+    exit 0
+fi
+
+selected_shader="${1:-eye_of_phi}"
+selected_shader="${selected_shader%.frag}"
+
+if [[ ! -f "$SHADER_DIR/${selected_shader}.frag" ]]; then
+    printf 'Shader "%s" no encontrado.\n' "$selected_shader" >&2
+    printf 'Shaders disponibles:\n' >&2
+    for s in "${available_shaders[@]}"; do
+        printf '  • %s\n' "$s" >&2
+    done
+    exit 1
+fi
+
+tmp_config=$(mktemp /tmp/cava-glsl.XXXXXX.conf)
+trap 'rm -f "$tmp_config"' EXIT INT TERM
+
+cp "$CONFIG_BASE" "$tmp_config"
+sed -i "s|^fragment_shader = .*|fragment_shader = ${selected_shader}.frag|" "$tmp_config"
+
+printf 'Lanzando Cava GLSL con shader: %s\n' "$selected_shader"
+exec cava -p "$tmp_config"

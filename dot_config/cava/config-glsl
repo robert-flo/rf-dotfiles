@@ -1,0 +1,21 @@
+## Configuration file for CAVA (GLSL Shader Profile)
+
+[general]
+framerate = 60
+autosens = 1
+bars = 64
+bar_width = 1
+bar_spacing = 0
+
+[input]
+method = pipewire
+source = auto
+
+[output]
+method = sdl_glsl
+vertex_shader = pass_through.vert
+fragment_shader = eye_of_phi.frag
+continuous_rendering = 0
+
+[color]
+theme = 'matugen'
