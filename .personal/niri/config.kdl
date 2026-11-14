@@ -419,7 +419,6 @@ binds {
     // Open/close the Overview: a zoomed-out view of workspaces and windows.
     // You can also move the mouse into the top-left hot corner,
     // or do a four-finger swipe up on a touchpad.
-    Mod+O repeat=false { toggle-overview; }
     Mod+Alt+Space repeat=false { toggle-overview; }
 
     Mod+Q repeat=false { close-window; }
@@ -627,9 +626,6 @@ binds {
     // Clavis Spotlight Clipboard Manager
     Mod+P repeat=false hotkey-overlay-title="Clavis Clipboard Manager" { spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "clipboard"; }
 
-    // Keystone Dynamic Island: Hub & Tools
-    Mod+Apostrophe repeat=false hotkey-overlay-title="Keystone Central Hub" { spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "hub"; }
-
     // Actions to switch layouts.
     // Note: if you uncomment these, make sure you do NOT have
     // a matching layout switch hotkey configured in xkb options above.
@@ -661,9 +657,6 @@ binds {
 
     // Hot reload Niri & Clavis Shell in Place
     Mod+Alt+R repeat=false hotkey-overlay-title="Reload Desktop: Niri & Clavis Shell" { spawn-sh "clavis-reload.sh"; }
-
-    // Instant random wallpaper via Clavis Quickshell IPC
-    Mod+Ctrl+W repeat=false { spawn "qs" "-c" "clavis" "ipc" "call" "wallpaper" "random"; }
 
     // Night Mode / Eye Care toggle
     Mod+Alt+N repeat=false { spawn-sh "clavis-toggle-night.sh"; }

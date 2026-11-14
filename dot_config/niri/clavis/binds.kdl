@@ -9,9 +9,6 @@ binds {
     Mod+Ctrl+Space repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "commands";
     };
-    Mod+Alt+V repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "clipboard";
-    };
     Mod+Alt+W repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "spotlight" "openMode" "wallpapers";
     };
@@ -26,9 +23,6 @@ binds {
     };
     Mod+A repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "quicksettings";
-    };
-    Mod+Shift+W repeat=false {
-        spawn "qs" "-c" "clavis" "ipc" "call" "keystone" "hub";
     };
     Alt+Shift+L repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "lock" "open";
