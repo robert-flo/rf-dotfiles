@@ -237,17 +237,20 @@ layout {
         // You can change how shadows look. The values below are in logical
         // pixels and match the CSS box-shadow properties.
 
-        // Softness controls the shadow blur radius.
-        softness 30
+        // Softness controls the shadow blur radius (smooth mist diffusion).
+        softness 28
 
-        // Spread expands the shadow.
+        // Spread expands the shadow out from the window perimeter.
         spread 5
 
-        // Offset moves the shadow relative to the window.
-        offset x=0 y=5
+        // Centered offset creates an omnidirectional halo around all 4 sides.
+        offset x=0 y=0
 
-        // You can also change the shadow color and opacity.
-        color "#0007"
+        // Active window glowing halo color (fallback if matugen has not generated statindet-colors).
+        color "#7fc8ff70"
+
+        // Inactive windows extinguish the glow and display a discreet neutral dark shadow.
+        inactive-color "#00000035"
     }
 
     // Struts shrink the area occupied by windows, similarly to layer-shell panels.

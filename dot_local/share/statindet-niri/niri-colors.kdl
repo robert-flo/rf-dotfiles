@@ -1,9 +1,17 @@
-layout{
-    focus-ring{
+layout {
+    focus-ring {
         active-gradient from="{{colors.primary.default.hex}}cc" to="{{colors.tertiary.default.hex}}cc" angle=135
         urgent-color "{{colors.error.default.hex}}"
-
-        }
+    }
+    shadow {
+        on
+        softness 28
+        spread 5
+        offset x=0 y=0
+        draw-behind-window false
+        color "{{colors.primary.default.hex}}70"
+        inactive-color "#00000035"
+    }
 }
 recent-windows {    
     highlight {
