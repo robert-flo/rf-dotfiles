@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cava Visualizer (GLSL Shaders)
+GenericName=Audio Visualizer
+Comment=OpenGL/SDL2 GPU Accelerated Audio Visualizer with GLSL Shaders
+Exec=cava-glsl --menu
+Icon=audio-card
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=audio;visualizer;cava;spectrum;music;shader;glsl;
+StartupNotify=true

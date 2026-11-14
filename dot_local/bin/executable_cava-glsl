@@ -1,48 +1,126 @@
 #!/usr/bin/env bash
-# Runner para Cava en modo acelerado por GPU (SDL / Shaders GLSL)
+# ==============================================================================
+# Runner interactivo para CAVA con soporte para Shaders GLSL / SDL2
+# Soporta selección interactiva por menú gráfico (Fuzzel) o CLI directo.
+# Si ya hay una instancia gráfica corriendo, conmuta el shader al instante.
+# ==============================================================================
 set -euo pipefail
 
 SHADER_DIR="$HOME/.config/cava/shaders"
 CONFIG_BASE="$HOME/.config/cava/config-glsl"
+PID_FILE="/tmp/cava-glsl.pid"
 
 if [[ ! -d "$SHADER_DIR" ]]; then
     printf 'Error: No se encontró el directorio de shaders en %s\n' "$SHADER_DIR" >&2
     exit 1
 fi
 
-mapfile -t available_shaders < <(find "$SHADER_DIR" -maxdepth 1 -name "*.frag" -exec basename {} .frag \; | sort)
+# Mapeo descriptivo de shaders
+declare -A SHADER_DESCS=(
+    ["eye_of_phi"]="Espiral áurea hipnótica (Reactiva a bajos)"
+    ["bar_spectrum"]="Barras clásicas de espectro con gradiente"
+    ["northern_lights"]="Ondulaciones fluidas estilo aurora boreal"
+    ["winamp_line_style_spectrum"]="Osciloscopio lineal retro estilo Winamp"
+    ["spectrogram"]="Cascada temporal continua de frecuencias"
+    ["orion_circle"]="Anillo circular reactivo minimalista"
+    ["orion_circle_rotate"]="Anillo circular con rotación dinámica"
+    ["orion_saturn_core"]="Núcleo gravitatorio de Saturno con pulso"
+    ["orion_saturn_subring"]="Anillo orbital planetario reactivo"
+)
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    printf 'Uso: cava-glsl [nombre_shader]\n\n'
-    printf 'Lanza Cava renderizado por GPU mediante OpenGL/SDL2.\n\n'
-    printf 'Shaders disponibles en %s:\n' "$SHADER_DIR"
-    for s in "${available_shaders[@]}"; do
-        printf '  • %s\n' "$s"
+# Lista ordenada de shaders
+SHADERS=(
+    "eye_of_phi"
+    "bar_spectrum"
+    "northern_lights"
+    "winamp_line_style_spectrum"
+    "spectrogram"
+    "orion_circle"
+    "orion_circle_rotate"
+    "orion_saturn_core"
+    "orion_saturn_subring"
+)
+
+show_help() {
+    printf 'Uso: cava-glsl [shader | -m | --menu | -k | --kill]\n\n'
+    printf 'Opciones:\n'
+    printf '  [nombre]        Lanza CAVA con el shader especificado.\n'
+    printf '  -m, --menu      Abre el selector interactivo (Fuzzel / GUI).\n'
+    printf '  -k, --kill      Cierra la ventana activa de CAVA GLSL.\n'
+    printf '  -h, --help      Muestra esta ayuda.\n\n'
+    printf 'Shaders disponibles:\n'
+    for s in "${SHADERS[@]}"; do
+        printf '  • %-26s %s\n' "$s" "${SHADER_DESCS[$s]:-}"
     done
-    printf '\nEjemplos:\n'
-    printf '  cava-glsl eye_of_phi\n'
-    printf '  cava-glsl bar_spectrum\n'
-    printf '  cava-glsl northern_lights\n'
-    exit 0
-fi
+}
 
-selected_shader="${1:-eye_of_phi}"
-selected_shader="${selected_shader%.frag}"
+kill_existing() {
+    if [[ -f "$PID_FILE" ]]; then
+        old_pid=$(cat "$PID_FILE" 2>/dev/null || true)
+        if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
+            kill "$old_pid" 2>/dev/null || true
+        fi
+        rm -f "$PID_FILE"
+    fi
+    pkill -f "cava.*config-glsl" 2>/dev/null || true
+}
 
-if [[ ! -f "$SHADER_DIR/${selected_shader}.frag" ]]; then
-    printf 'Shader "%s" no encontrado.\n' "$selected_shader" >&2
-    printf 'Shaders disponibles:\n' >&2
-    for s in "${available_shaders[@]}"; do
-        printf '  • %s\n' "$s" >&2
-    done
+target_shader=""
+
+# Procesar argumentos
+case "${1:-}" in
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+    -k|--kill)
+        kill_existing
+        printf 'CAVA GLSL cerrado.\n'
+        exit 0
+        ;;
+    -m|--menu|"")
+        # Si no se pasó argumento o se pidió menú:
+        if command -v fuzzel >/dev/null 2>&1; then
+            menu_input=""
+            for s in "${SHADERS[@]}"; do
+                menu_input+="${s} — ${SHADER_DESCS[$s]:-}\n"
+            done
+            selected_line=$(printf "%b" "$menu_input" | fuzzel --dmenu -p "🎵 Cava Shader: " -l 10 -w 55 || true)
+            if [[ -z "$selected_line" ]]; then
+                exit 0
+            fi
+            target_shader=$(printf "%s" "$selected_line" | awk '{print $1}')
+        else
+            # Si no hay fuzzel, usar default
+            target_shader="eye_of_phi"
+        fi
+        ;;
+    *)
+        target_shader="${1%.frag}"
+        ;;
+esac
+
+if [[ ! -f "$SHADER_DIR/${target_shader}.frag" ]]; then
+    printf 'Error: Shader "%s" no existe en %s\n' "$target_shader" "$SHADER_DIR" >&2
+    show_help >&2
     exit 1
 fi
 
-tmp_config=$(mktemp /tmp/cava-glsl.XXXXXX.conf)
-trap 'rm -f "$tmp_config"' EXIT INT TERM
+# Cerrar cualquier instancia previa de GLSL para conmutar sin duplicar ventanas
+kill_existing
 
-cp "$CONFIG_BASE" "$tmp_config"
-sed -i "s|^fragment_shader = .*|fragment_shader = ${selected_shader}.frag|" "$tmp_config"
+# Preparar archivo de configuración activo
+active_config="/tmp/cava-glsl-active.conf"
+cp "$CONFIG_BASE" "$active_config"
+sed -i "s|^fragment_shader = .*|fragment_shader = ${target_shader}.frag|" "$active_config"
 
-printf 'Lanzando Cava GLSL con shader: %s\n' "$selected_shader"
-exec cava -p "$tmp_config"
+printf '🎵 Iniciando CAVA GLSL [%s]...\n' "$target_shader"
+
+# Lanzar en segundo plano si fue invocado desde GUI o launcher, o en primer plano si es TTY
+if [[ -t 0 && -t 1 && "${1:-}" != "-m" && "${1:-}" != "--menu" ]]; then
+    exec cava -p "$active_config"
+else
+    cava -p "$active_config" >/dev/null 2>&1 &
+    new_pid=$!
+    echo "$new_pid" > "$PID_FILE"
+fi
