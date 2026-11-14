@@ -1,0 +1,3 @@
+{{- if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "niri-upstream") -}}
+{{ include ".upstream/kitty/current-theme.conf" }}
+{{- end -}}
