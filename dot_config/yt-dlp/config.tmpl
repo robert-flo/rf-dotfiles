@@ -1,5 +1,6 @@
 -o /z-drive/idalia/MUSICA/Downloads/%(uploader)s/%(title)s.%(ext)s
 --embed-thumbnail
+--convert-thumbnails jpg
 --embed-metadata
 -x
 -f bestaudio/best
@@ -11,3 +12,4 @@
 --sponsorblock-remove sponsor,selfpromo,interaction
 --downloader aria2c
 --downloader-args aria2c:'--continue --min-split-size=5M --max-connection-per-server=4'
+--exec "after_move:yt-dlp-music-postprocess %(filepath)q"
