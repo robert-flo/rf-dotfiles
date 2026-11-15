@@ -5,12 +5,12 @@ layout {
     }
     shadow {
         on
-        softness 28
-        spread 5
+        softness 30
+        spread 6
         offset x=0 y=0
         draw-behind-window false
-        color "{{colors.primary.default.hex}}70"
-        inactive-color "#00000035"
+        color "#7fc8ffa0"
+        inactive-color "#00000045"
     }
 }
 recent-windows {    

@@ -19,12 +19,22 @@ if [[ "$IS_GLASSY" == "true" ]]; then
     # Conmutar a Opaco
     cp -f "$OPAQUE_EFFECTS" "$ACTIVE_EFFECTS"
     niri msg action load-config-file 2>/dev/null || true
-    notify-send -a "Clavis" -i "preferences-system-windows" -t 2500 \
+    notify-send \
+        -a "Clavis" \
+        -i "preferences-system-windows" \
+        -t 2 \
+        -h boolean:transient:true \
+        -h string:x-canonical-private-synchronous:clavis-visual-effects \
         "Efectos Visuales" "Modo Opaco Activado (Rendimiento estándar)"
 else
     # Conmutar a Glassy Blur
     cp -f "$GLASSY_EFFECTS" "$ACTIVE_EFFECTS"
     niri msg action load-config-file 2>/dev/null || true
-    notify-send -a "Clavis" -i "preferences-desktop-display" -t 2500 \
+    notify-send \
+        -a "Clavis" \
+        -i "preferences-desktop-display" \
+        -t 2 \
+        -h boolean:transient:true \
+        -h string:x-canonical-private-synchronous:clavis-visual-effects \
         "Efectos Visuales" "Modo Translúcido Activado (Glassy Blur)"
 fi
