@@ -54,4 +54,4 @@ Este documento es la **Fuente Única de Verdad (SSoT)** para configurar cualquie
 
 * **Cursor CLI / OpenCode:** Usar fondo `#1e1e2e`, texto `#cdd6f4` y tokens de sintaxis Catppuccin Mocha.
 * **Ghostty / Alacritty:** Asignar `background = "#1e1e2e"` y la tabla ANSI de arriba.
-* **Yazi / Elio:** Usar las plantillas registradas en Chezmoi (`.upstream/*/theme-dark.toml`).
+* **Yazi / Elio:** Usar las plantillas registradas en Chezmoi (`.upstream/*/theme-dark.toml`). Al igual que Kitty y Yazi, **Elio se mantiene desacoplado de Matugen** para evitar alteraciones cromáticas impredecibles ante cambios de wallpaper, gobernado estrictamente por las plantillas SSoT de Chezmoi.
