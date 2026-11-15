@@ -14,6 +14,7 @@ binds {
     Mod+D { spawn "qs" "-c" "clavis" "ipc" "call" "launcher" "toggle"; }
 
     Mod+T hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
+    Mod+E hotkey-overlay-title="Emoji Picker: Fuzzel" { spawn-sh "clavis-emoji-picker.sh"; }
     Mod+Shift+Slash { show-hotkey-overlay; }
 
     // App Dock: Core Application Launchers (Super + Alt + 1..5)
@@ -22,6 +23,8 @@ binds {
     Mod+Alt+3 hotkey-overlay-title="Open Knowledge Base: Obsidian" { spawn "obsidian"; }
     Mod+Alt+4 hotkey-overlay-title="Open Email Client: Thunderbird" { spawn "thunderbird"; }
     Mod+Alt+5 hotkey-overlay-title="Open Media Player: Splayer" { spawn "splayer"; }
+
+    Mod+F10 { maximize-window-to-edges; }
 
     XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+ -l 1.0"; }
     XF86AudioLowerVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1-"; }
