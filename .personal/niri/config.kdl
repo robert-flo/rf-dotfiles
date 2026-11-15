@@ -111,6 +111,18 @@ input {
 // Find more information on the wiki:
 // https://niri-wm.github.io/niri/Configuration:-Layout
 layout {
+    // Indicador lateral estilizado para pestañas en columnas (E)
+    tab-indicator {
+        hide-when-single-tab
+        place-within-column
+        position "left"
+        corner-radius 20.0
+        gap -12.0
+        gaps-between-tabs 10.0
+        width 4.0
+        length total-proportion=0.1
+    }
+
     // Set gaps around windows in logical pixels.
     gaps 16
 
