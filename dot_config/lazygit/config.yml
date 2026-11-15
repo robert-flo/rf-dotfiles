@@ -1,3 +1,8 @@
+disableStartupPopups: true
+notARepository: "skip"
+promptToReturnFromSubprocess: false
+update:
+  method: "never"
 customCommands:
   - key: "C"
     command: "git cz"
@@ -8,7 +13,19 @@ customCommands:
 gui:
   mouseEvents: false
   scrollHeight: 30
+  nerdFontsVersion: "3"
+  showBottomLine: false
+  showCommandLog: false
+  showListFooter: false
+  showRandomTip: false
+  theme:
+    activeBorderColor:
+      - "magenta"
+      - "bold"
+    inactiveBorderColor:
+      - "black"
 git:
   autoFetch: false
+  parseEmoji: true
   diffRenderers:
     - command: delta --dark --syntax-theme="Solarized (dark)" --paging=never
