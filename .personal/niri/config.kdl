@@ -130,6 +130,7 @@ layout {
         proportion 0.33333
         proportion 0.5
         proportion 0.66667
+        proportion 1.0
 
         // Fixed sets the width in logical pixels exactly.
         // fixed 1920
@@ -583,11 +584,9 @@ binds {
 
     // Cycle through widths set in preset-column-widths.
     Mod+R { switch-preset-column-width; }
-    // Cycling through the presets in reverse order is also possible.
-    Mod+Shift+R { switch-preset-column-width-back; }
 
     Mod+Alt+R { switch-preset-window-height; }
-    Mod+Ctrl+R { reset-window-height; }
+    Mod+Ctrl+R hotkey-overlay-title="Reset Window Dimensions (Height & Width)" { spawn-sh "niri msg action reset-window-height; niri msg action set-column-width 50%"; }
 
     Mod+F { maximize-column; }
     Mod+Shift+F { fullscreen-window; }
