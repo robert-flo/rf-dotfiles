@@ -78,6 +78,7 @@
       "python-cairo",
       "python-evdev",
       "python-gobject",
+      "python-mutagen",
       "python-pyudev",
       "qt6-5compat",
       "qt6-base",
