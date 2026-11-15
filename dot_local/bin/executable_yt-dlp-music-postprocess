@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+Post-procesador musical para yt-dlp basado en /z-drive/idalia/MUSICA/AGENTS.md.
+- Normaliza tags artist/title/album sin recodificar el audio (mutagen).
+- Recorta la carátula incrustada a cuadrado 1:1 JPEG para compatibilidad con SPlayer.
+- Limpia miniaturas residuales y caché de Windows Media Player en la carpeta.
+- Renombra el archivo final al estándar: "Artista - Título.ext".
+"""
+
+import base64
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+from mutagen import File
+from mutagen.asf import ASFUnicodeAttribute
+from mutagen.flac import FLAC, Picture
+from mutagen.id3 import APIC, TALB, TIT2, TPE1
+from mutagen.mp4 import MP4, MP4Cover
+
+AUDIO_EXTS = {".opus", ".ogg", ".mp3", ".m4a", ".flac", ".wma"}
+
+SPAM_PATTERNS = [
+    "chiase",
+    "cdtag",
+    "torrent",
+    "download",
+    "flac.ru",
+    "myfreemp3",
+    "mp3clan",
+]
+
+YOUTUBE_JUNK_PATTERNS = [
+    r"\(\s*\d+kbit[^\)]*\)",
+    r"\[\s*\d+kbit[^\]]*\]",
+    r"\(Official\s*(?:Music\s*)?(?:Video|Audio|HD|Lyric\s*Video)\)",
+    r"\[Official\s*(?:Music\s*)?(?:Video|Audio|HD|Lyric\s*Video)\]",
+    r"\(Video\s*Oficial\)",
+    r"\[Video\s*Oficial\]",
+    r"\(Audio\s*Oficial\)",
+    r"\[Audio\s*Oficial\]",
+    r"\(Lyric\s*Video\)",
+    r"\[Lyric\s*Video\]",
+    r"\(Lyrics?\)",
+    r"\[Lyrics?\]",
+    r"\(Letra\)",
+    r"\(con\s*letra\)",
+    r"\(subtitulado[^\)]*\)",
+    r"\[subtitulado[^\]]*\]",
+    r"\(sub\s*español[^\)]*\)",
+    r"\(Audio\)",
+    r"\[Audio\]",
+    r"\(Visualizer\)",
+    r"\[Visualizer\]",
+    r"\(Remastered\s*\d*\)",
+    r"\[HD\]",
+    r"\(HD\)",
+    r"\(HDTV\)",
+    r"\[4K\]",
+    r"\(4K\)",
+]
+
+EDITION_HINTS = (
+    "remix",
+    "acoustic",
+    "live",
+    "version",
+    "edit",
+    "remaster",
+    "instrumental",
+    "karaoke",
+    "en vivo",
+)
+
+
+def clean_text(text: str) -> str:
+    if not text:
+        return ""
+    if "\x00" in text:
+        text = text.split("\x00")[0]
+    text = text.replace("`", "'").replace("’", "'").replace("‘", "'")
+    for pat in YOUTUBE_JUNK_PATTERNS:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip(" -_|")
+
+
+def clean_artist(artist: str) -> str:
+    artist = clean_text(artist)
+    artist = re.sub(r"\s*-\s*Topic$", "", artist, flags=re.IGNORECASE)
+    return artist.strip()
+
+
+def is_spam(val) -> bool:
+    if not val:
+        return False
+    low = str(val).lower()
+    return any(p in low for p in SPAM_PATTERNS)
+
+
+def split_artist_title(artist: str, title: str) -> tuple[str, str]:
+    """Separa 'Artista - Título' cuando el título de YouTube ya incluye al artista."""
+    if " - " in title:
+        left, right = [p.strip() for p in title.split(" - ", 1)]
+        if left and right:
+            same_artist = left.lower() == artist.lower()
+            looks_like_edition = any(h in right.lower() for h in EDITION_HINTS)
+            if same_artist or not looks_like_edition:
+                return left, right
+    if artist and title.lower().startswith(f"{artist.lower()} - "):
+        return artist, title[len(artist) + 3 :].strip()
+    return artist, title
+
+
+def probe_image_bytes(data: bytes) -> tuple[int, int, str]:
+    with tempfile.NamedTemporaryFile(suffix=".img") as tmp:
+        tmp.write(data)
+        tmp.flush()
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_streams",
+                tmp.name,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return 0, 0, ""
+        info = json.loads(proc.stdout or "{}")
+        streams = info.get("streams") or []
+        if not streams:
+            return 0, 0, ""
+        st = streams[0]
+        return int(st.get("width", 0)), int(st.get("height", 0)), st.get("codec_name", "")
+
+
+def square_jpeg_bytes(data: bytes) -> tuple[bytes, int, int] | None:
+    """Convierte y recorta al centro una imagen a JPEG cuadrado 1:1 usando ffmpeg."""
+    w, h, codec = probe_image_bytes(data)
+    if w > 0 and w == h and codec == "mjpeg":
+        return data, w, h
+
+    with tempfile.NamedTemporaryFile(suffix=".img") as src, tempfile.NamedTemporaryFile(
+        suffix=".jpg"
+    ) as dst:
+        src.write(data)
+        src.flush()
+        proc = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                src.name,
+                "-vf",
+                "crop=min(iw\\,ih):min(iw\\,ih)",
+                "-q:v",
+                "2",
+                dst.name,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        dst.seek(0)
+        out = dst.read()
+        nw, nh, _ = probe_image_bytes(out)
+        return out, nw, nh
+
+
+def normalize_cover_art(audio, ext: str) -> bool:
+    changed = False
+    if ext in (".opus", ".ogg"):
+        pics = audio.get("metadata_block_picture")
+        if pics:
+            pic = Picture(base64.b64decode(pics[0]))
+            res = square_jpeg_bytes(pic.data)
+            if res:
+                new_data, w, h = res
+                if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
+                    new_pic = Picture()
+                    new_pic.type = 3
+                    new_pic.mime = "image/jpeg"
+                    new_pic.desc = "Cover"
+                    new_pic.width = w
+                    new_pic.height = h
+                    new_pic.depth = 24
+                    new_pic.data = new_data
+                    audio["metadata_block_picture"] = [
+                        base64.b64encode(new_pic.write()).decode("ascii")
+                    ]
+                    changed = True
+    elif ext == ".flac":
+        if getattr(audio, "pictures", None):
+            pic = audio.pictures[0]
+            res = square_jpeg_bytes(pic.data)
+            if res:
+                new_data, w, h = res
+                if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
+                    new_pic = Picture()
+                    new_pic.type = 3
+                    new_pic.mime = "image/jpeg"
+                    new_pic.desc = "Cover"
+                    new_pic.width = w
+                    new_pic.height = h
+                    new_pic.depth = 24
+                    new_pic.data = new_data
+                    audio.clear_pictures()
+                    audio.add_picture(new_pic)
+                    changed = True
+    elif ext == ".mp3" and audio.tags is not None:
+        apics = [k for k in audio.tags.keys() if k.startswith("APIC")]
+        if apics:
+            apic = audio.tags[apics[0]]
+            res = square_jpeg_bytes(apic.data)
+            if res:
+                new_data, _, _ = res
+                if new_data != apic.data or apic.mime != "image/jpeg":
+                    for k in apics:
+                        del audio.tags[k]
+                    audio.tags["APIC:Cover"] = APIC(
+                        encoding=3, mime="image/jpeg", type=3, desc="Cover", data=new_data
+                    )
+                    changed = True
+    elif ext == ".m4a" and "covr" in audio and audio["covr"]:
+        raw = bytes(audio["covr"][0])
+        res = square_jpeg_bytes(raw)
+        if res:
+            new_data, _, _ = res
+            if new_data != raw:
+                audio["covr"] = [MP4Cover(new_data, imageformat=MP4Cover.FORMAT_JPEG)]
+                changed = True
+    return changed
+
+
+def cleanup_leftover_images(folder: str, orig_stem: str) -> None:
+    backup_dir = os.path.join(folder, ".albumart_backup")
+    for fname in os.listdir(folder):
+        low = fname.lower()
+        fpath = os.path.join(folder, fname)
+        if not os.path.isfile(fpath):
+            continue
+        if low.startswith(("albumart_", "albumartsmall", "folder.")) and low.endswith(
+            (".jpg", ".jpeg")
+        ):
+            os.makedirs(backup_dir, exist_ok=True)
+            shutil.move(fpath, os.path.join(backup_dir, fname))
+            continue
+        stem, fext = os.path.splitext(fname)
+        if fext.lower() in (".webp", ".jpg", ".jpeg", ".png") and (
+            stem == orig_stem or stem.startswith(f"{orig_stem}.")
+        ):
+            os.remove(fpath)
+
+
+def sanitize_filename(name: str, is_artist: bool = False) -> str:
+    rep = "/"
+    sub = "&" if is_artist else "-"
+    return (
+        name.replace(rep, sub)
+        .replace("\\", sub)
+        .replace(":", " -")
+        .replace("*", "")
+        .replace("?", "")
+        .replace('"', "'")
+        .replace("<", "")
+        .replace(">", "")
+        .replace("|", "-")
+        .strip()
+    )
+
+
+def process_file(filepath: str) -> None:
+    filepath = os.path.abspath(filepath)
+    if not os.path.isfile(filepath):
+        return
+    folder = os.path.dirname(filepath)
+    orig_name = os.path.basename(filepath)
+    orig_stem, ext = os.path.splitext(orig_name)
+    ext = ext.lower()
+    if ext not in AUDIO_EXTS:
+        return
+
+    audio = File(filepath)
+    if audio is None:
+        return
+
+    art, tit, alb = "", "", ""
+    if ext == ".m4a":
+        art = str(audio.get("\xa9ART", [""])[0])
+        tit = str(audio.get("\xa9nam", [""])[0])
+        alb = str(audio.get("\xa9alb", [""])[0])
+    elif ext == ".mp3":
+        art = str(audio.get("TPE1", ""))
+        tit = str(audio.get("TIT2", ""))
+        alb = str(audio.get("TALB", ""))
+    elif ext in (".flac", ".opus", ".ogg"):
+        art = str(audio.get("artist", [""])[0])
+        tit = str(audio.get("title", [""])[0])
+        alb = str(audio.get("album", [""])[0])
+    elif ext == ".wma":
+        art = str(audio.get("Author", [""])[0])
+        tit = str(audio.get("Title", [""])[0])
+        alb = str(audio.get("WM/AlbumTitle", [""])[0])
+
+    art = clean_artist(art)
+    tit = clean_text(tit)
+    alb = clean_text(alb)
+    if is_spam(alb):
+        alb = ""
+
+    if not tit:
+        tit = clean_text(orig_stem.replace("_", " "))
+
+    art, tit = split_artist_title(art, tit)
+
+    if ext == ".m4a":
+        audio["\xa9ART"] = [art]
+        audio["\xa9nam"] = [tit]
+        if alb:
+            audio["\xa9alb"] = [alb]
+        elif "\xa9alb" in audio and is_spam(audio["\xa9alb"][0]):
+            del audio["\xa9alb"]
+        if "\xa9cmt" in audio and is_spam(audio["\xa9cmt"][0]):
+            del audio["\xa9cmt"]
+    elif ext == ".mp3":
+        audio["TPE1"] = TPE1(encoding=3, text=[art])
+        audio["TIT2"] = TIT2(encoding=3, text=[tit])
+        if alb:
+            audio["TALB"] = TALB(encoding=3, text=[alb])
+        elif "TALB" in audio and is_spam(audio["TALB"]):
+            del audio["TALB"]
+        for k in list(audio.keys()):
+            if is_spam(audio[k]):
+                del audio[k]
+    elif ext in (".flac", ".opus", ".ogg"):
+        audio["artist"] = [art]
+        audio["title"] = [tit]
+        if alb:
+            audio["album"] = [alb]
+        elif "album" in audio and is_spam(audio["album"][0]):
+            del audio["album"]
+        if "comment" in audio and is_spam(audio["comment"][0]):
+            del audio["comment"]
+    elif ext == ".wma":
+        audio["Author"] = [ASFUnicodeAttribute(art)]
+        audio["WM/AlbumArtist"] = [ASFUnicodeAttribute(art)]
+        audio["Title"] = [ASFUnicodeAttribute(tit)]
+        if alb:
+            audio["WM/AlbumTitle"] = [ASFUnicodeAttribute(alb)]
+
+    normalize_cover_art(audio, ext)
+    audio.save()
+
+    cleanup_leftover_images(folder, orig_stem)
+
+    safe_art = sanitize_filename(art, is_artist=True)
+    safe_tit = sanitize_filename(tit, is_artist=False)
+    if safe_art and safe_tit:
+        new_name = f"{safe_art} - {safe_tit}{ext}"
+    else:
+        new_name = f"{safe_tit or orig_stem}{ext}"
+
+    if new_name != orig_name:
+        dest = os.path.join(folder, new_name)
+        idx = 1
+        while os.path.exists(dest) and os.path.abspath(dest) != filepath:
+            base, _ = os.path.splitext(new_name)
+            dest = os.path.join(folder, f"{base} ({idx}){ext}")
+            idx += 1
+        os.rename(filepath, dest)
+        print(f"[yt-dlp-music-postprocess] {orig_name} -> {os.path.basename(dest)}")
+    else:
+        print(f"[yt-dlp-music-postprocess] OK: {orig_name}")
+
+
+if __name__ == "__main__":
+    for arg in sys.argv[1:]:
+        process_file(arg)
