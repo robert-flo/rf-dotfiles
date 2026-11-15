@@ -374,6 +374,15 @@ window-rule {
     }
 }
 
+// Picture-in-Picture flotante con posición inicial en esquina inferior derecha (C)
+window-rule {
+    match title=r#"^Picture-in-Picture$"#
+    open-floating true
+    default-floating-position x=32 y=32 relative-to="bottom-right"
+    default-column-width { fixed 480; }
+    default-window-height { fixed 270; }
+}
+
 // Example: enable rounded corners for all windows.
 // (This example rule is commented out with a "/-" in front.)
 /-window-rule {
