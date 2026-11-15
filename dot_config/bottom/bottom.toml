@@ -1,0 +1,21 @@
+enable_gpu = true
+
+[flags]
+group_processes = true
+
+[[row]]
+ratio = 2
+
+[[row.child]]
+type = "cpu"
+
+[[row.child]]
+type = "mem"
+
+[[row]]
+ratio = 3
+
+[[row.child]]
+default = true
+ratio = 1
+type = "proc"
