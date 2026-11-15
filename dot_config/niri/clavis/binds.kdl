@@ -27,7 +27,7 @@ binds {
     Mod+A repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "sidebar" "toggle" "quicksettings";
     };
-    Alt+Shift+L repeat=false {
+    Mod+Shift+BackSpace repeat=false {
         spawn "qs" "-c" "clavis" "ipc" "call" "lock" "open";
     };
 
