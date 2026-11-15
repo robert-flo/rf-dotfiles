@@ -1,15 +1,18 @@
 layout {
     focus-ring {
-        active-gradient from="{{colors.primary.default.hex}}cc" to="{{colors.tertiary.default.hex}}cc" angle=135
+        width 4
+        active-color "{{colors.primary.default.hex}}"
+        active-gradient from="{{colors.primary.default.hex}}" to="{{colors.tertiary.default.hex}}" angle=135
+        inactive-color "transparent"
         urgent-color "{{colors.error.default.hex}}"
     }
     shadow {
         on
-        softness 40
+        softness 38
         spread 10
         offset x=0 y=0
         draw-behind-window false
-        color "#7fc8ffc8"
+        color "#58a6ffb8"
         inactive-color "#00000045"
     }
 }
