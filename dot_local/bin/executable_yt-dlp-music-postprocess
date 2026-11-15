@@ -15,6 +15,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
+import urllib.request
 
 from mutagen import File
 from mutagen.asf import ASFUnicodeAttribute
@@ -181,8 +183,97 @@ def square_jpeg_bytes(data: bytes) -> tuple[bytes, int, int] | None:
         return out, nw, nh
 
 
-def normalize_cover_art(audio, ext: str) -> bool:
-    changed = False
+def _norm_match(text: str) -> str:
+    text = re.sub(r"\s+(?:feat|ft)\.?\s+.*$", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def fetch_official_square_cover(artist: str, title: str) -> tuple[bytes, int, int] | None:
+    """Busca carátula oficial 1:1 (600x600) en iTunes Search API con validación estricta."""
+    base_art = _norm_match(artist)
+    base_tit = _norm_match(title)
+    if len(base_art) < 2 or len(base_tit) < 2:
+        return None
+    try:
+        url = "https://itunes.apple.com/search?" + urllib.parse.urlencode(
+            {"term": f"{base_art} {base_tit}", "entity": "song", "limit": "5"}
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+    for item in data.get("results", []):
+        res_art = _norm_match(item.get("artistName", ""))
+        res_tit = _norm_match(item.get("trackName", ""))
+        art_ok = base_art in res_art or (len(res_art) >= 3 and res_art in base_art)
+        tit_ok = base_tit in res_tit or (len(res_tit) >= 3 and res_tit in base_tit)
+        if not (art_ok and tit_ok):
+            continue
+        art_url = item.get("artworkUrl100", "")
+        if not art_url:
+            continue
+        hi_res = art_url.replace("100x100bb", "600x600bb")
+        try:
+            with urllib.request.urlopen(hi_res, timeout=6) as img_resp:
+                img_bytes = img_resp.read()
+            w, h, codec = probe_image_bytes(img_bytes)
+            if w > 0 and w == h and codec == "mjpeg":
+                return img_bytes, w, h
+            res = square_jpeg_bytes(img_bytes)
+            if res:
+                return res
+        except Exception:
+            continue
+    return None
+
+
+def _apply_cover_bytes(audio, ext: str, new_data: bytes, w: int, h: int) -> bool:
+    if ext in (".opus", ".ogg"):
+        new_pic = Picture()
+        new_pic.type = 3
+        new_pic.mime = "image/jpeg"
+        new_pic.desc = "Cover"
+        new_pic.width = w
+        new_pic.height = h
+        new_pic.depth = 24
+        new_pic.data = new_data
+        audio["metadata_block_picture"] = [
+            base64.b64encode(new_pic.write()).decode("ascii")
+        ]
+        return True
+    if ext == ".flac":
+        new_pic = Picture()
+        new_pic.type = 3
+        new_pic.mime = "image/jpeg"
+        new_pic.desc = "Cover"
+        new_pic.width = w
+        new_pic.height = h
+        new_pic.depth = 24
+        new_pic.data = new_data
+        audio.clear_pictures()
+        audio.add_picture(new_pic)
+        return True
+    if ext == ".mp3" and audio.tags is not None:
+        for k in [k for k in audio.tags.keys() if k.startswith("APIC")]:
+            del audio.tags[k]
+        audio.tags["APIC:Cover"] = APIC(
+            encoding=3, mime="image/jpeg", type=3, desc="Cover", data=new_data
+        )
+        return True
+    if ext == ".m4a":
+        audio["covr"] = [MP4Cover(new_data, imageformat=MP4Cover.FORMAT_JPEG)]
+        return True
+    return False
+
+
+def normalize_cover_art(audio, ext: str, artist: str = "", title: str = "") -> bool:
+    official = fetch_official_square_cover(artist, title)
+    if official:
+        new_data, w, h = official
+        return _apply_cover_bytes(audio, ext, new_data, w, h)
+
     if ext in (".opus", ".ogg"):
         pics = audio.get("metadata_block_picture")
         if pics:
@@ -191,18 +282,7 @@ def normalize_cover_art(audio, ext: str) -> bool:
             if res:
                 new_data, w, h = res
                 if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
-                    new_pic = Picture()
-                    new_pic.type = 3
-                    new_pic.mime = "image/jpeg"
-                    new_pic.desc = "Cover"
-                    new_pic.width = w
-                    new_pic.height = h
-                    new_pic.depth = 24
-                    new_pic.data = new_data
-                    audio["metadata_block_picture"] = [
-                        base64.b64encode(new_pic.write()).decode("ascii")
-                    ]
-                    changed = True
+                    return _apply_cover_bytes(audio, ext, new_data, w, h)
     elif ext == ".flac":
         if getattr(audio, "pictures", None):
             pic = audio.pictures[0]
@@ -210,39 +290,24 @@ def normalize_cover_art(audio, ext: str) -> bool:
             if res:
                 new_data, w, h = res
                 if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
-                    new_pic = Picture()
-                    new_pic.type = 3
-                    new_pic.mime = "image/jpeg"
-                    new_pic.desc = "Cover"
-                    new_pic.width = w
-                    new_pic.height = h
-                    new_pic.depth = 24
-                    new_pic.data = new_data
-                    audio.clear_pictures()
-                    audio.add_picture(new_pic)
-                    changed = True
+                    return _apply_cover_bytes(audio, ext, new_data, w, h)
     elif ext == ".mp3" and audio.tags is not None:
         apics = [k for k in audio.tags.keys() if k.startswith("APIC")]
         if apics:
             apic = audio.tags[apics[0]]
             res = square_jpeg_bytes(apic.data)
             if res:
-                new_data, _, _ = res
+                new_data, w, h = res
                 if new_data != apic.data or apic.mime != "image/jpeg":
-                    for k in apics:
-                        del audio.tags[k]
-                    audio.tags["APIC:Cover"] = APIC(
-                        encoding=3, mime="image/jpeg", type=3, desc="Cover", data=new_data
-                    )
-                    changed = True
+                    return _apply_cover_bytes(audio, ext, new_data, w, h)
     elif ext == ".m4a" and "covr" in audio and audio["covr"]:
         raw = bytes(audio["covr"][0])
         res = square_jpeg_bytes(raw)
         if res:
-            new_data, _, _ = res
+            new_data, w, h = res
             if new_data != raw:
-                audio["covr"] = [MP4Cover(new_data, imageformat=MP4Cover.FORMAT_JPEG)]
-                changed = True
+                return _apply_cover_bytes(audio, ext, new_data, w, h)
+    return False
     return changed
 
 
@@ -362,7 +427,7 @@ def process_file(filepath: str) -> None:
         if alb:
             audio["WM/AlbumTitle"] = [ASFUnicodeAttribute(alb)]
 
-    normalize_cover_art(audio, ext)
+    normalize_cover_art(audio, ext, art, tit)
     audio.save()
 
     cleanup_leftover_images(folder, orig_stem)
