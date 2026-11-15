@@ -338,6 +338,12 @@ window-rule {
     open-floating true
 }
 
+// Annotation editor (Satty)
+window-rule {
+    match app-id=r#"^(com\.gabm\.satty|satty)$"#
+    open-floating true
+}
+
 // Example: block out two password managers from screen capture.
 // (This example rule is commented out with a "/-" in front.)
 /-window-rule {
@@ -637,6 +643,7 @@ binds {
     // Mod+Shift+Space { switch-layout "prev"; }
 
     Print { screenshot; }
+    Shift+Print { spawn-sh "clavis-screenshot-annotate.sh"; }
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
 
