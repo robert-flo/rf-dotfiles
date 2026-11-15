@@ -1,2 +1,2 @@
-// Managed by Clavis.
-// X-Ray is niri's default for client-requested effects.
+// Clavis Window Effects: Opaque (Default)
+// Windows preserve native 100% opacity with zero background blur overhead.
