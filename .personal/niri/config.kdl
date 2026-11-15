@@ -238,16 +238,16 @@ layout {
         // pixels and match the CSS box-shadow properties.
 
         // Softness controls the shadow blur radius (smooth mist diffusion).
-        softness 28
+        softness 40
 
         // Spread expands the shadow out from the window perimeter.
-        spread 5
+        spread 10
 
         // Centered offset creates an omnidirectional halo around all 4 sides.
         offset x=0 y=0
 
         // Active window glowing halo color (fallback if matugen has not generated statindet-colors).
-        color "#7fc8ff70"
+        color "#7fc8ffc8"
 
         // Inactive windows extinguish the glow and display a discreet neutral dark shadow.
         inactive-color "#00000035"
