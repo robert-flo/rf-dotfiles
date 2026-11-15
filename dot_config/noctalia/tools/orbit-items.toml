@@ -1,0 +1,108 @@
+# Orbit Radial Menu Configuration (Clavis / Noctalia / Nyxuri)
+# SSoT: /z/rf-dotfiles
+
+[[items]]
+id = "kitty"
+name = "Kitty"
+desc = "Terminal Principal"
+icon = "󰞷"
+cmd = "kitty"
+shortcut = "1"
+color_key = "primary"
+
+[[items]]
+id = "rust-tools"
+name = "Rust Tools"
+desc = "Carpeta · 5 Tools Shin/Kaku"
+icon = "󱘗"
+shortcut = "2"
+color_key = "secondary"
+
+[[items.children]]
+id = "television"
+name = "Television (tv)"
+desc = "Fuzzy Finder TUI"
+icon = "󰍉"
+cmd = "clavis-tv.sh"
+shortcut = "1"
+color_key = "secondary"
+
+[[items.children]]
+id = "bottom"
+name = "Bottom (btm)"
+desc = "Monitor Gráfico GPU"
+icon = "󰓅"
+cmd = "clavis-btm.sh"
+shortcut = "2"
+color_key = "secondary"
+
+[[items.children]]
+id = "dust"
+name = "Dust"
+desc = "Analizador de Disco"
+icon = "󰋊"
+cmd = "clavis-dust.sh"
+shortcut = "3"
+color_key = "secondary"
+
+[[items.children]]
+id = "fum"
+name = "Fum Player"
+desc = "MPRIS Player TUI"
+icon = "󰝚"
+cmd = "clavis-fum.sh"
+shortcut = "4"
+color_key = "secondary"
+
+[[items.children]]
+id = "ouch"
+name = "Ouch Helper"
+desc = "Compresor Rápido"
+icon = "󰛫"
+cmd = "clavis-ouch.sh"
+shortcut = "5"
+color_key = "secondary"
+
+[[items]]
+id = "tools"
+name = "System Tools"
+desc = "Carpeta · 3 Utilidades"
+icon = "󰘳"
+shortcut = "3"
+color_key = "secondary"
+
+[[items.children]]
+id = "missioncenter"
+name = "Mission Center"
+desc = "Monitor Gráfico GTK"
+icon = "󰓅"
+cmd = "missioncenter"
+shortcut = "1"
+color_key = "secondary"
+
+[[items.children]]
+id = "eyecare"
+name = "Eye Care"
+desc = "Toggle Luz Cálida"
+icon = "󰛨"
+cmd = "clavis-toggle-night.sh"
+shortcut = "2"
+color_key = "secondary"
+
+[[items.children]]
+id = "clean"
+name = "Clean Cache"
+desc = "Limpiar Espacio"
+icon = "󰃢"
+cmd = "clean"
+shortcut = "3"
+color_key = "secondary"
+
+[[items]]
+id = "wallpaper"
+name = "Wallpapers"
+desc = "Selector Visual"
+icon = "󰸉"
+cmd = "qs -c clavis ipc call spotlight open"
+shortcut = "4"
+color_key = "secondary"
