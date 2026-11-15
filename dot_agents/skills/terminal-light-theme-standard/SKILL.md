@@ -240,6 +240,7 @@ Por defecto, casi todas asumen una terminal oscura y renderizan el texto plano y
    * Mapear imágenes a violeta joya (`#7c3aed`), media a teal (`#0e7490`), archivos a ámbar (`#b45309`), documentos a azul zafiro (`#0969da`), ejecutables a rojo rubí (`#d20f39`) y carpetas a azul real en negrita (`#1e66f5`).
 
 6. **Elio File Manager (`~/.config/elio/theme.toml`):**
+   * **Desacoplado de Matugen:** Elio **NO** debe ser intervenido ni regenerado dinámicamente por Matugen. Utiliza estrictamente la paleta ergonómica estática del estándar SSoT gestionada e inyectada vía Chezmoi (`dot_config/elio/theme.toml.tmpl` y `.upstream/elio/theme-light.toml`).
    * `[palette]`: Fondo cálido `bg = "#eff1f5"`, paneles `panel = "#eff1f5"`, texto carbón `text = "#3a3d52"`, selección `selected_bg = "#ccd0da"`, borde seleccionado `selected_border = "#1e66f5"`, acento `accent = "#1e66f5"`.
    * `[classes]`: Colores de clases consistentes con el estándar (carpetas `#1e66f5`, imágenes `#7c3aed`, media `#0e7490`, docs `#0f766e`, archivos `#b45309`, código `#0969da`).
 
