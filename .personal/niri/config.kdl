@@ -344,16 +344,17 @@ window-rule {
     open-floating true
 }
 
-// Example: block out two password managers from screen capture.
-// (This example rule is commented out with a "/-" in front.)
-/-window-rule {
+// Reglas de privacidad para screencast (WhatsApp, Telegram y gestores de contraseñas)
+window-rule {
+    match title=r#"^WhatsApp.*"#
+    match app-id=r#".*whatsapp.*"#
+    match app-id=r#"^(org\.telegram\.desktop|app\.drey\.PaperPlane)$"#
     match app-id=r#"^org\.keepassxc\.KeePassXC$"#
+    match app-id=r#"^(1Password|1password)$"#
+    match app-id=r#"^(Bitwarden|bitwarden)$"#
     match app-id=r#"^org\.gnome\.World\.Secrets$"#
 
-    block-out-from "screen-capture"
-
-    // Use this instead if you want them visible on third-party screenshot tools.
-    // block-out-from "screencast"
+    block-out-from "screencast"
 }
 
 // Example: enable rounded corners for all windows.
