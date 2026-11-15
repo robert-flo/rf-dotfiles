@@ -665,7 +665,7 @@ binds {
     Mod+Alt+E repeat=false { spawn-sh "clavis-translate.sh"; }
 
     // Quick date and time OSD notification
-    Mod+Ctrl+Alt+T repeat=false hotkey-overlay-title="Date & Time Notice" { spawn-sh "clavis-time-notice.sh"; }
+    Mod+Alt+T repeat=false hotkey-overlay-title="Date & Time Notice" { spawn-sh "clavis-time-notice.sh"; }
 
     // Quick wallpaper / video favorite slots (1..9)
     Mod+Shift+1 { spawn "clavis-wallpaper-slot.sh" "1"; }
