@@ -673,6 +673,7 @@ binds {
     Shift+Print { spawn-sh "clavis-screenshot-annotate.sh"; }
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
+    Mod+Shift+X hotkey-overlay-title="Color Picker: Niri Native (HEX to Clipboard)" { spawn-sh "niri msg pick-color | grep -oP '#[0-9a-fA-F]+' | tr -d '\n' | wl-copy"; }
 
     // Applications such as remote-desktop clients and software KVM switches may
     // request that niri stops processing the keyboard shortcuts defined here
