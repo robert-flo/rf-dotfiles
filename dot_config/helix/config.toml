@@ -1,0 +1,85 @@
+theme = "catppuccin_mocha"
+
+[editor]
+auto-pairs = true
+bufferline = "multiple"
+clipboard-provider = "wayland"
+color-modes = true
+completion-replace = true
+completion-trigger-len = 1
+cursorline = true
+gutters = ["diagnostics", "line-numbers", "spacer", "diff"]
+line-number = "relative"
+soft-wrap.enable = true
+trim-final-newlines = true
+trim-trailing-whitespace = true
+true-color = true
+undercurl = true
+
+[editor.cursor-shape]
+insert = "bar"
+normal = "block"
+select = "underline"
+
+[editor.indent-guides]
+rainbow-option = "dim"
+render = true
+
+[editor.inline-diagnostics]
+cursor-line = "hint"
+max-diagnostics = 3
+other-lines = "error"
+
+[editor.lsp]
+display-inlay-hints = true
+display-messages = true
+
+[editor.statusline]
+center = ["file-modification-indicator", "file-name", "spinner"]
+left = ["mode", "spacer", "version-control"]
+right = ["diagnostics", "selections", "position", "position-percentage", "total-line-numbers"]
+
+[editor.statusline.mode]
+insert = "INSERT"
+normal = "NORMAL"
+select = "SELECT"
+
+[editor.whitespace.characters]
+nbsp = "⍽"
+newline = "↴"
+space = " "
+tab = "→"
+tabpad = "-"
+
+[editor.whitespace.render]
+newline = "all"
+space = "all"
+tab = "all"
+
+[keys.insert]
+C-b = "goto_line_start"
+C-e = "goto_line_end"
+C-h = "move_char_left"
+C-j = "move_line_down"
+C-k = "move_line_up"
+C-l = "move_char_right"
+
+[keys.normal]
+A-h = ["delete_selection", "move_char_left", "paste_before"]
+A-j = ["extend_to_line_bounds", "delete_selection", "paste_after"]
+A-k = ["extend_to_line_bounds", "delete_selection", "move_line_up", "paste_before"]
+A-l = ["delete_selection", "move_char_right", "paste_after"]
+C-h = ["jump_view_left"]
+C-j = ["jump_view_down"]
+C-k = ["jump_view_up"]
+C-l = ["jump_view_right"]
+S-tab = ["goto_previous_buffer"]
+tab = ["goto_next_buffer"]
+
+[keys.normal.space]
+x = ":buffer-close"
+
+[keys.normal.space.u]
+W = ":set whitespace.render none"
+f = ":format"
+w = ":set whitespace.render all"
