@@ -358,8 +358,8 @@ window-rule {
 
 // Reglas de privacidad para screencast (WhatsApp, Telegram y gestores de contraseñas)
 window-rule {
-    match title=r#"^WhatsApp.*"#
-    match app-id=r#".*whatsapp.*"#
+    match title=r#"(?i).*whatsapp.*"#
+    match app-id=r#"(?i).*whatsapp.*"#
     match app-id=r#"^(org\.telegram\.desktop|app\.drey\.PaperPlane)$"#
     match app-id=r#"^org\.keepassxc\.KeePassXC$"#
     match app-id=r#"^(1Password|1password)$"#
@@ -374,9 +374,12 @@ window-rule {
     match is-window-cast-target=true
     focus-ring {
         active-color "#f38ba8"
+        active-gradient from="#f38ba8" to="#ff75a0" angle=135
         inactive-color "#7d0d2d"
     }
     border {
+        on
+        width 4
         active-color "#f38ba8"
         inactive-color "#7d0d2d"
     }
