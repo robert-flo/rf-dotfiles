@@ -49,6 +49,7 @@
       "gst-plugins-good",
       "gst-plugins-ugly",
       "gtk-layer-shell",
+      "helix",
       "hyprpicker",
       "imagemagick",
       "inotify-tools",
