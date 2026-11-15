@@ -653,15 +653,12 @@ binds {
     // which ensures niri always processes them, even when an inhibitor is active.
     Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
 
-    // The quit action will show a confirmation dialog to avoid accidental exits.
-    Ctrl+Alt+Delete { quit; }
-
     // Powers off the monitors. To turn them back on, do any input like
     // moving the mouse or pressing any other key.
     Mod+Shift+P { power-off-monitors; }
 
     // Hot reload Niri & Clavis Shell in Place
-    Mod+Alt+R repeat=false hotkey-overlay-title="Reload Desktop: Niri & Clavis Shell" { spawn-sh "clavis-reload.sh"; }
+    Ctrl+Alt+Delete repeat=false hotkey-overlay-title="Reload Desktop: Niri & Clavis Shell" { spawn-sh "clavis-reload.sh"; }
 
     // Night Mode / Eye Care toggle
     Mod+Alt+N repeat=false { spawn-sh "clavis-toggle-night.sh"; }
