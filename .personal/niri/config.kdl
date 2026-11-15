@@ -593,9 +593,8 @@ binds {
 
     // Toggle single focused window to screen edges: Super+F10 (clavis/binds.kdl)
 
-    // Expand the focused column to space not taken up by other fully visible columns.
-    // Makes the column "fill the rest of the space".
-    Mod+Ctrl+F { expand-column-to-available-width; }
+    // Expand the focused column to space not taken up by other fully visible columns (Toggle).
+    Mod+Ctrl+F hotkey-overlay-title="Toggle Expand Column to Available Space" { spawn-sh "clavis-expand-toggle.sh"; }
 
     Mod+C { center-column; }
 
