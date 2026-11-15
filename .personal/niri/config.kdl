@@ -382,6 +382,7 @@ binds {
     Mod+Grave hotkey-overlay-title="Scratchpad Terminal: kitty" { spawn-sh "clavis-scratch-toggle.sh kitty"; }
     Mod+Ctrl+Return hotkey-overlay-title="Tiling Terminal Session: Herdr" { spawn "kitty" "herdr"; }
     Mod+D hotkey-overlay-title="Run Application: Orbit Radial Launcher" { spawn-sh "clavis-orbit-launcher.sh"; }
+    Mod+E hotkey-overlay-title="Emoji Picker: Fuzzel" { spawn-sh "clavis-emoji-picker.sh"; }
 
     // App Dock: Core Application Launchers (Super + Alt + 1..5)
     Mod+Alt+1 hotkey-overlay-title="Open File Manager: nautilus" { spawn "nautilus"; }
@@ -586,8 +587,7 @@ binds {
     Mod+F { maximize-column; }
     Mod+Shift+F { fullscreen-window; }
 
-    // Toggle single focused window to screen edges
-    Mod+Shift+M repeat=false hotkey-overlay-title="Toggle Maximize Window to Edges" { maximize-window-to-edges; }
+    // Toggle single focused window to screen edges: Super+F10 (clavis/binds.kdl)
 
     // Expand the focused column to space not taken up by other fully visible columns.
     // Makes the column "fill the rest of the space".

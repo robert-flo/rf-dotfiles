@@ -60,11 +60,11 @@ binds {
     };
 
     Super+F9 repeat=false {
-        spawn-sh "clavis-emoji-picker.sh";
+        spawn-sh "clavis-cycle-animations.sh";
     };
 
     Super+F10 repeat=false {
-        spawn-sh "clavis-cycle-animations.sh";
+        maximize-window-to-edges;
     };
 
     Super+F11 repeat=false {
