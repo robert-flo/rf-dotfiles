@@ -135,8 +135,13 @@ layout {
         // fixed 1920
     }
 
-    // You can also customize the heights that "switch-preset-window-height" (Mod+Ctrl+Shift+R) toggles between.
-    // preset-window-heights { }
+    // You can also customize the heights that "switch-preset-window-height" (Mod+Alt+R) toggles between.
+    preset-window-heights {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+        proportion 1.0
+    }
 
     // You can change the default width of the new windows.
     default-column-width { proportion 0.5; }
@@ -581,7 +586,7 @@ binds {
     // Cycling through the presets in reverse order is also possible.
     Mod+Shift+R { switch-preset-column-width-back; }
 
-    Mod+Ctrl+Shift+R { switch-preset-window-height; }
+    Mod+Alt+R { switch-preset-window-height; }
     Mod+Ctrl+R { reset-window-height; }
 
     Mod+F { maximize-column; }
