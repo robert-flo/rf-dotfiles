@@ -1,0 +1,12 @@
+-o {{ .chezmoi.homeDir }}/Music/%(uploader)s/%(title)s.%(ext)s
+--embed-thumbnail
+--embed-metadata
+-f bestaudio/best
+--audio-format opus
+--audio-quality 0
+--continue
+--no-overwrites
+--restrict-filenames
+--sponsorblock-remove sponsor,selfpromo,interaction
+--downloader aria2c
+--downloader-args aria2c:'--continue --min-split-size=5M --max-connection-per-server=4'
