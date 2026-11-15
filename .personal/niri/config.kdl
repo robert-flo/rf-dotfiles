@@ -632,6 +632,7 @@ binds {
 
     Mod+F { maximize-column; }
     Mod+Shift+F { fullscreen-window; }
+    Mod+Alt+F hotkey-overlay-title="Toggle Windowed Fullscreen (Pick Window)" { spawn-sh "niri msg action toggle-windowed-fullscreen --id $(niri msg --json pick-window | jq '.id')"; }
 
     // Toggle single focused window to screen edges: Super+F10 (clavis/binds.kdl)
 
