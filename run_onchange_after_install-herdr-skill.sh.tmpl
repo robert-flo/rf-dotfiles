@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+run_npx() {
+  if command -v npx >/dev/null 2>&1; then
+    npx "$@"
+  elif command -v mise >/dev/null 2>&1 && mise which npx >/dev/null 2>&1; then
+    mise exec -- npx "$@"
+  elif [[ -x "{{ .chezmoi.homeDir }}/.local/share/mise/shims/npx" ]]; then
+    PATH="{{ .chezmoi.homeDir }}/.local/share/mise/shims:$PATH" npx "$@"
+  else
+    return 127
+  fi
+}
+
+echo "==> [chezmoi] Instalando/actualizando skill global herdr para {{ .chezmoi.username }}..."
+
+status=0
+run_npx --yes skills add herdrdev/herdr --skill herdr -g -y || status=$?
+
+if [[ $status -eq 127 ]]; then
+  echo "==> [chezmoi] Omitiendo instalación de skill herdr (npx no disponible)."
+  exit 0
+elif [[ $status -ne 0 ]]; then
+  echo "==> [chezmoi] Aviso: no se pudo instalar/actualizar la skill herdr (código $status; ¿sin red?)."
+  exit 0
+fi
