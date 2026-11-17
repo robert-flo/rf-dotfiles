@@ -50,6 +50,7 @@
       "gst-plugins-ugly",
       "gtk-layer-shell",
       "helix",
+      "herdr-app",
       "hyprpicker",
       "imagemagick",
       "inotify-tools",
