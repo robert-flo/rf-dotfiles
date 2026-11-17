@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_02-install-system-tools.sh.tmpl
+# Instalación y sincronización de herramientas globales del sistema (/usr/local/bin)
+# yt-video hash: {{ include "scripts/yt-video" | sha256sum }}
+# ==============================================================================
+set -euo pipefail
+
+CAN_SUDO=false
+if [[ $EUID -eq 0 ]]; then
+  CAN_SUDO=true
+  SUDO_CMD=""
+elif sudo -n true 2>/dev/null; then
+  CAN_SUDO=true
+  SUDO_CMD="sudo"
+fi
+
+if [[ "$CAN_SUDO" == false ]]; then
+  echo "==> [chezmoi] Omitiendo herramientas del sistema (sin privilegios sudo directos)."
+  exit 0
+fi
+
+echo "==> [chezmoi] Sincronizando utilidades globales en /usr/local/bin..."
+$SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-video" /usr/local/bin/yt-video

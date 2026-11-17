@@ -45,6 +45,7 @@ Archivos y enlaces que deben existir idénticos en todos los perfiles del sistem
 - `symlink__boveda`: Enlace declarativo hacia `/z-drive/boveda`.
 - `dot_Work/symlink_tries`: Enlace declarativo hacia `/z-drive/tries`.
 - `dot_config/rclone/symlink_rclone.conf`: Enlace declarativo hacia `/etc/rclone/rclone.conf`.
+- `/usr/local/bin/yt-video` (`scripts/yt-video`): Utilidad global del sistema para descarga rápida de video (1080p MP4) omitiendo la configuración de audio-only de yt-dlp, gestionada vía `run_onchange_after_02-install-system-tools.sh.tmpl`.
 
 ### 2. Perfil Clavis (`niri`, `niri-test`, `sura`)
 Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
