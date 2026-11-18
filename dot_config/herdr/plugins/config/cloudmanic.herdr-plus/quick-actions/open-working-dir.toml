@@ -1,0 +1,4 @@
+name = "Reveal Working Dir"
+description = "Open the launch directory in file manager"
+type = "command"
+command = 'xdg-open "{{.WorkDir}}"'

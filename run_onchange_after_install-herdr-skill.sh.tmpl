@@ -25,3 +25,10 @@ if [[ $status -eq 127 ]]; then
 elif [[ $status -ne 0 ]]; then
   echo "==> [chezmoi] Aviso: falló la instalación de la skill herdr (código $status); omitiendo para no bloquear chezmoi."
 fi
+
+if command -v herdr >/dev/null 2>&1; then
+  echo "==> [chezmoi] Asegurando plugins de herdr (cloudmanic/herdr-plus, robert-flo/herdr-terminal-file-manager)..."
+  herdr plugin install -y cloudmanic/herdr-plus >/dev/null 2>&1 || true
+  herdr plugin install -y robert-flo/herdr-terminal-file-manager >/dev/null 2>&1 || true
+  herdr server reload-config >/dev/null 2>&1 || true
+fi
