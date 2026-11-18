@@ -1,0 +1,4 @@
+name = "GitHub Profile"
+description = "Open https://github.com/robert-flo"
+type = "command"
+command = "xdg-open https://github.com/robert-flo"

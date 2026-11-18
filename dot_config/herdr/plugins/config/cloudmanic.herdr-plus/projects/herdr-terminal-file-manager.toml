@@ -1,0 +1,23 @@
+name = "herdr-terminal-file-manager"
+group = "HR-CLAVIS"
+working_dir = "/z-home-repos/HR-CLAVIS/repos/herdr-terminal-file-manager"
+
+[[tabs]]
+name = "agy"
+command = "agy --dangerously-skip-permissions"
+
+[[tabs]]
+name = "cursor"
+command = "cursor-agent --yolo"
+
+[[tabs]]
+name = "lazygit"
+command = "lazygit"
+
+[[tabs]]
+name = "neovim"
+command = "rvim"
+
+[[tabs]]
+name = "elio"
+command = "elio"

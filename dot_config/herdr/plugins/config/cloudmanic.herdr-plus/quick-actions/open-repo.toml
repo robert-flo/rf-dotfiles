@@ -1,0 +1,49 @@
+name = "Open Repo on GitHub"
+description = "Pick one of our repos and open it"
+type = "select"
+command = "xdg-open https://github.com/robert-flo/{{.Value}}"
+
+[[options]]
+label = "HR-CLAVIS"
+value = "HR-CLAVIS"
+description = "robert-flo/HR-CLAVIS (Home Repo)"
+
+[[options]]
+label = "rf-dotfiles"
+value = "rf-dotfiles"
+description = "robert-flo/rf-dotfiles (Chezmoi SSoT)"
+
+[[options]]
+label = "PJ-NIRI-rf-omarchy-workstation"
+value = "PJ-NIRI-rf-omarchy-workstation"
+description = "robert-flo/PJ-NIRI-rf-omarchy-workstation (Vault & ADRs)"
+
+[[options]]
+label = "pj-template"
+value = "pj-template"
+description = "robert-flo/pj-template (Template de Tríos)"
+
+[[options]]
+label = "herdr-terminal-file-manager"
+value = "herdr-terminal-file-manager"
+description = "robert-flo/herdr-terminal-file-manager (Elio plugin)"
+
+[[options]]
+label = "ravn-trio"
+value = "ravn-trio"
+description = "robert-flo/ravn-trio (pj-trio en herdr)"
+
+[[options]]
+label = "ravn-sessionizer"
+value = "ravn-sessionizer"
+description = "robert-flo/ravn-sessionizer"
+
+[[options]]
+label = "ravn-git-bare-clone"
+value = "ravn-git-bare-clone"
+description = "robert-flo/ravn-git-bare-clone"
+
+[[options]]
+label = "Rollo"
+value = "Rollo"
+description = "robert-flo/Rollo (RaVN Dotfiles)"

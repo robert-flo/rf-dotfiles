@@ -1,0 +1,8 @@
+name = "Search Google"
+description = "Type a query and open the results"
+type = "form"
+command = "xdg-open 'https://www.google.com/search?q={{.Value | urlquery}}'"
+
+[form]
+prompt = "Search Google for"
+placeholder = "e.g. herdr terminal multiplexer"
