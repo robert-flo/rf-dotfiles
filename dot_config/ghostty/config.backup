@@ -1,0 +1,43 @@
+# Base inspirada en Shin (adaptada a JetBrainsMono Nerd Font para Omarchy/Niri)
+font-family = "JetBrainsMono Nerd Font"
+font-size = 10
+scrollback-limit = 10000
+
+cursor-style = bar
+cursor-style-blink = true
+adjust-cursor-height = 40%
+adjust-cursor-thickness = 100%
+adjust-box-thickness = 100%
+adjust-underline-thickness = 100%
+adjust-underline-position = 110%
+
+window-padding-x = 15
+window-padding-y = 6
+window-decoration = none
+window-inherit-working-directory = true
+resize-overlay = never
+desktop-notifications = true
+bell-features = audio
+confirm-close-surface = false
+gtk-single-instance = true
+quit-after-last-window-closed = false
+
+keybind = ctrl+shift+i=inspector:toggle
+keybind = ctrl+shift+p=toggle_command_palette
+keybind = ctrl+shift+c=copy_to_clipboard
+keybind = ctrl+shift+v=paste_from_clipboard
+keybind = ctrl+shift+0=reset_font_size
+keybind = ctrl+shift+r=reload_config
+keybind = ctrl++=increase_font_size:1
+keybind = ctrl+-=decrease_font_size:1
+keybind = alt+v=new_split:right
+keybind = alt+s=new_split:down
+keybind = alt+h=goto_split:left
+keybind = alt+l=goto_split:right
+keybind = alt+j=goto_split:bottom
+keybind = alt+k=goto_split:top
+keybind = alt+n=new_tab
+keybind = shift+alt+h=goto_split:left
+keybind = shift+alt+l=goto_split:right
+keybind = shift+alt+j=goto_split:bottom
+keybind = shift+alt+k=goto_split:top
