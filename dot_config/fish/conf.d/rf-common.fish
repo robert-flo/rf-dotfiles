@@ -3,13 +3,38 @@
 # Compartida entre todos los perfiles (Clavis, Nyxuri, Omarchy) vía Chezmoi
 # ==============================================================================
 
-# 1. Rutas locales prioritarias
-fish_add_path -g $HOME/.local/bin
+# 1. Entorno base y editor
+set -g fish_greeting ""
+set -gx XDG_CONFIG_HOME $HOME/.config
+set -gx GOPATH $HOME/go
 
-# 2. Alias de Google Antigravity CLI
+if command -q rvim
+    set -gx EDITOR rvim
+    alias vim rvim
+else if command -q nvim
+    set -gx EDITOR nvim
+    alias vim nvim
+end
+
+# 2. Rutas locales prioritarias
+fish_add_path -g $HOME/.local/bin $GOPATH/bin $HOME/.cargo/bin node_modules/.bin
+
+# 3. Aliases (Craftzdog + estación)
 alias agy="$HOME/.local/bin/agy"
+alias claude-yolo="claude --dangerously-skip-permissions"
+alias pn pnpm
+alias cz chezmoi
+alias la "ls -A"
 
-# 3. Integración de tries colaborativos (/zt) y proyectos personales (~/Work)
+if command -q eza
+    alias ll "eza -l -g --icons=auto"
+    alias lla "ll -a"
+else
+    alias ll "ls -l"
+    alias lla "ll -A"
+end
+
+# 4. Integración de tries colaborativos (/zt) y proyectos personales (~/Work)
 set -gx TRY_PATH /zt
 set -gx TRY_PROJECTS $HOME/Work
 
@@ -17,7 +42,7 @@ if status is-interactive
     command -q try; and env SHELL=fish try init /zt | source
 end
 
-# 4. API Key de Cursor (si existe localmente)
+# 5. API Key de Cursor (si existe localmente)
 if test -r $HOME/.config/cursor/api-key
     set -gx CURSOR_API_KEY (string trim < $HOME/.config/cursor/api-key)
 end
