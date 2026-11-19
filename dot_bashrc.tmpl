@@ -27,6 +27,23 @@ export PATH="$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$ANDROID_
 # --- FIN ANDROID & JAVA ENVIRONMENT ---
 
 [[ $- != *i* ]] && return
+{{- if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") }}
+
+# Load Omarchy environment before switching to fish so fish inherits it
+# without paying for bash's interactive rc hooks.
+: "${OMARCHY_PATH:=/usr/share/omarchy}"
+[[ -r "$OMARCHY_PATH/default/bash/envs" ]] && source "$OMARCHY_PATH/default/bash/envs"
+
+# Launch fish for interactive TTY sessions (Arch Wiki safe-exec pattern),
+# keeping /bin/bash as login shell and allowing NO_FISH=1 or bash-from-fish escapes.
+if [[ -t 0 && -t 1 && -z ${NO_FISH:-} && -z ${BASH_EXECUTION_STRING:-} ]] \
+  && [[ $(ps --no-header --pid=$PPID --format=comm) != "fish" ]] \
+  && command -v fish >/dev/null 2>&1; then
+  shopt -q login_shell && LOGIN_OPTION='--login' || LOGIN_OPTION=''
+  # shellcheck disable=SC2086
+  exec fish $LOGIN_OPTION
+fi
+{{- end }}
 
 # All the default Omarchy aliases and functions
 # (don't mess with these directly, just overwrite them here!)
