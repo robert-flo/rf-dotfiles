@@ -7,6 +7,7 @@ Post-procesador musical para yt-dlp basado en /z-drive/idalia/MUSICA/AGENTS.md.
 - Renombra el archivo final al estándar: "Artista - Título.ext".
 """
 
+import argparse
 import base64
 import json
 import os
@@ -21,7 +22,7 @@ import urllib.request
 from mutagen import File
 from mutagen.asf import ASFUnicodeAttribute
 from mutagen.flac import FLAC, Picture
-from mutagen.id3 import APIC, TALB, TIT2, TPE1
+from mutagen.id3 import APIC, TALB, TIT2, TPE1, TRCK
 from mutagen.mp4 import MP4, MP4Cover
 
 AUDIO_EXTS = {".opus", ".ogg", ".mp3", ".m4a", ".flac", ".wma"}
@@ -392,7 +393,19 @@ def sanitize_filename(name: str, is_artist: bool = False) -> str:
     )
 
 
-def process_file(filepath: str) -> None:
+def _parse_track_num(track: str | None) -> int | None:
+    if not track:
+        return None
+    m = re.search(r"\d+", str(track))
+    if not m:
+        return None
+    val = int(m.group(0))
+    return val if val > 0 else None
+
+
+def process_file(
+    filepath: str, default_album: str = "", track: str | None = None
+) -> None:
     filepath = os.path.abspath(filepath)
     if not os.path.isfile(filepath):
         return
@@ -430,6 +443,10 @@ def process_file(filepath: str) -> None:
     alb = clean_text(alb)
     if is_spam(alb):
         alb = ""
+    if not alb and default_album:
+        alb = clean_text(default_album)
+
+    track_num = _parse_track_num(track)
 
     if not tit:
         tit = clean_text(orig_stem.replace("_", " "))
@@ -443,6 +460,8 @@ def process_file(filepath: str) -> None:
             audio["\xa9alb"] = [alb]
         elif "\xa9alb" in audio and is_spam(audio["\xa9alb"][0]):
             del audio["\xa9alb"]
+        if track_num is not None:
+            audio["trkn"] = [(track_num, 0)]
         if "\xa9cmt" in audio and is_spam(audio["\xa9cmt"][0]):
             del audio["\xa9cmt"]
     elif ext == ".mp3":
@@ -452,6 +471,8 @@ def process_file(filepath: str) -> None:
             audio["TALB"] = TALB(encoding=3, text=[alb])
         elif "TALB" in audio and is_spam(audio["TALB"]):
             del audio["TALB"]
+        if track_num is not None:
+            audio["TRCK"] = TRCK(encoding=3, text=[str(track_num)])
         for k in list(audio.keys()):
             if is_spam(audio[k]):
                 del audio[k]
@@ -462,6 +483,8 @@ def process_file(filepath: str) -> None:
             audio["album"] = [alb]
         elif "album" in audio and is_spam(audio["album"][0]):
             del audio["album"]
+        if track_num is not None:
+            audio["tracknumber"] = [str(track_num)]
         if "comment" in audio and is_spam(audio["comment"][0]):
             del audio["comment"]
     elif ext == ".wma":
@@ -470,6 +493,8 @@ def process_file(filepath: str) -> None:
         audio["Title"] = [ASFUnicodeAttribute(tit)]
         if alb:
             audio["WM/AlbumTitle"] = [ASFUnicodeAttribute(alb)]
+        if track_num is not None:
+            audio["WM/TrackNumber"] = [ASFUnicodeAttribute(str(track_num))]
 
     cover_status = normalize_cover_art(audio, ext, art, tit, folder, orig_stem)
     audio.save()
@@ -479,9 +504,15 @@ def process_file(filepath: str) -> None:
     safe_art = sanitize_filename(art, is_artist=True)
     safe_tit = sanitize_filename(tit, is_artist=False)
     if safe_art and safe_tit:
-        new_name = f"{safe_art} - {safe_tit}{ext}"
+        base_name = f"{safe_art} - {safe_tit}"
     else:
-        new_name = f"{safe_tit or orig_stem}{ext}"
+        base_name = safe_tit or orig_stem
+
+    if track_num is not None:
+        prefix = f"{track_num:03d}" if track_num >= 100 else f"{track_num:02d}"
+        new_name = f"{prefix} - {base_name}{ext}"
+    else:
+        new_name = f"{base_name}{ext}"
 
     if new_name != orig_name:
         dest = os.path.join(folder, new_name)
@@ -499,5 +530,12 @@ def process_file(filepath: str) -> None:
 
 
 if __name__ == "__main__":
-    for arg in sys.argv[1:]:
-        process_file(arg)
+    parser = argparse.ArgumentParser(
+        description="Post-procesador musical para yt-dlp (tags, carátula 1:1 y renombrado)."
+    )
+    parser.add_argument("--album", default="", help="Álbum / playlist por defecto")
+    parser.add_argument("--track", default=None, help="Número de pista para playlists/álbumes")
+    parser.add_argument("files", nargs="+", help="Archivos de audio a procesar")
+    ns = parser.parse_args()
+    for arg in ns.files:
+        process_file(arg, default_album=ns.album, track=ns.track)
