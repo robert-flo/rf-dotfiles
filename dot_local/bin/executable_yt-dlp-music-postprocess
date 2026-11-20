@@ -64,6 +64,7 @@ YOUTUBE_JUNK_PATTERNS = [
     r"\(HDTV\)",
     r"\[4K\]",
     r"\(4K\)",
+    r"【[^】]*(?:公式|BGM|耐久|作業用|Official|MV|PV|Audio|Lyrics?|高音質|歌詞|HD|4K)[^】]*】",
 ]
 
 EDITION_HINTS = (
@@ -239,7 +240,10 @@ def _apply_cover_bytes(audio, ext: str, new_data: bytes, w: int, h: int) -> bool
         new_pic.height = h
         new_pic.depth = 24
         new_pic.data = new_data
-        audio["metadata_block_picture"] = [
+        # Xiph Vorbis Comment spec expects uppercase METADATA_BLOCK_PICTURE
+        for k in [k for k in audio.keys() if k.lower() == "metadata_block_picture"]:
+            del audio[k]
+        audio["METADATA_BLOCK_PICTURE"] = [
             base64.b64encode(new_pic.write()).decode("ascii")
         ]
         return True
@@ -268,11 +272,31 @@ def _apply_cover_bytes(audio, ext: str, new_data: bytes, w: int, h: int) -> bool
     return False
 
 
-def normalize_cover_art(audio, ext: str, artist: str = "", title: str = "") -> bool:
+def _find_sidecar_thumbnail(folder: str, orig_stem: str) -> bytes | None:
+    """Busca una miniatura descargada junto al archivo si yt-dlp no logró incrustarla."""
+    for fname in sorted(os.listdir(folder)):
+        stem, fext = os.path.splitext(fname)
+        if fext.lower() in (".jpg", ".jpeg", ".webp", ".png") and (
+            stem == orig_stem or stem.startswith(f"{orig_stem}.")
+        ):
+            fpath = os.path.join(folder, fname)
+            if os.path.isfile(fpath):
+                try:
+                    with open(fpath, "rb") as f:
+                        return f.read()
+                except OSError:
+                    continue
+    return None
+
+
+def normalize_cover_art(
+    audio, ext: str, artist: str = "", title: str = "", folder: str = "", orig_stem: str = ""
+) -> str:
     official = fetch_official_square_cover(artist, title)
     if official:
         new_data, w, h = official
-        return _apply_cover_bytes(audio, ext, new_data, w, h)
+        if _apply_cover_bytes(audio, ext, new_data, w, h):
+            return f"iTunes {w}x{h}"
 
     if ext in (".opus", ".ogg"):
         pics = audio.get("metadata_block_picture")
@@ -281,8 +305,15 @@ def normalize_cover_art(audio, ext: str, artist: str = "", title: str = "") -> b
             res = square_jpeg_bytes(pic.data)
             if res:
                 new_data, w, h = res
-                if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
-                    return _apply_cover_bytes(audio, ext, new_data, w, h)
+                has_upper = any(k == "METADATA_BLOCK_PICTURE" for k in audio.keys())
+                if (
+                    new_data != pic.data
+                    or pic.mime != "image/jpeg"
+                    or pic.type != 3
+                    or not has_upper
+                ):
+                    _apply_cover_bytes(audio, ext, new_data, w, h)
+                return f"embedded {w}x{h}"
     elif ext == ".flac":
         if getattr(audio, "pictures", None):
             pic = audio.pictures[0]
@@ -290,7 +321,8 @@ def normalize_cover_art(audio, ext: str, artist: str = "", title: str = "") -> b
             if res:
                 new_data, w, h = res
                 if new_data != pic.data or pic.mime != "image/jpeg" or pic.type != 3:
-                    return _apply_cover_bytes(audio, ext, new_data, w, h)
+                    _apply_cover_bytes(audio, ext, new_data, w, h)
+                return f"embedded {w}x{h}"
     elif ext == ".mp3" and audio.tags is not None:
         apics = [k for k in audio.tags.keys() if k.startswith("APIC")]
         if apics:
@@ -299,16 +331,28 @@ def normalize_cover_art(audio, ext: str, artist: str = "", title: str = "") -> b
             if res:
                 new_data, w, h = res
                 if new_data != apic.data or apic.mime != "image/jpeg":
-                    return _apply_cover_bytes(audio, ext, new_data, w, h)
+                    _apply_cover_bytes(audio, ext, new_data, w, h)
+                return f"embedded {w}x{h}"
     elif ext == ".m4a" and "covr" in audio and audio["covr"]:
         raw = bytes(audio["covr"][0])
         res = square_jpeg_bytes(raw)
         if res:
             new_data, w, h = res
             if new_data != raw:
-                return _apply_cover_bytes(audio, ext, new_data, w, h)
-    return False
-    return changed
+                _apply_cover_bytes(audio, ext, new_data, w, h)
+            return f"embedded {w}x{h}"
+
+    # Fallback: si no había carátula embebida, buscar miniatura local descargada por yt-dlp
+    if folder and orig_stem:
+        sidecar = _find_sidecar_thumbnail(folder, orig_stem)
+        if sidecar:
+            res = square_jpeg_bytes(sidecar)
+            if res:
+                new_data, w, h = res
+                if _apply_cover_bytes(audio, ext, new_data, w, h):
+                    return f"sidecar {w}x{h}"
+
+    return "none"
 
 
 def cleanup_leftover_images(folder: str, orig_stem: str) -> None:
@@ -427,7 +471,7 @@ def process_file(filepath: str) -> None:
         if alb:
             audio["WM/AlbumTitle"] = [ASFUnicodeAttribute(alb)]
 
-    normalize_cover_art(audio, ext, art, tit)
+    cover_status = normalize_cover_art(audio, ext, art, tit, folder, orig_stem)
     audio.save()
 
     cleanup_leftover_images(folder, orig_stem)
@@ -447,9 +491,11 @@ def process_file(filepath: str) -> None:
             dest = os.path.join(folder, f"{base} ({idx}){ext}")
             idx += 1
         os.rename(filepath, dest)
-        print(f"[yt-dlp-music-postprocess] {orig_name} -> {os.path.basename(dest)}")
+        print(
+            f"[yt-dlp-music-postprocess] {orig_name} -> {os.path.basename(dest)} (cover: {cover_status})"
+        )
     else:
-        print(f"[yt-dlp-music-postprocess] OK: {orig_name}")
+        print(f"[yt-dlp-music-postprocess] OK: {orig_name} (cover: {cover_status})")
 
 
 if __name__ == "__main__":
