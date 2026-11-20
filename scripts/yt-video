@@ -32,6 +32,16 @@ EOF
   exit 0
 fi
 
+# Verificación ligera de dependencias óptimas (solo avisa si falta alguna)
+_missing=()
+for _bin in ffmpeg aria2c deno; do
+  command -v "$_bin" >/dev/null 2>&1 || _missing+=("$_bin")
+done
+python3 -c "import curl_cffi" 2>/dev/null || _missing+=("python-curl_cffi")
+if [[ ${#_missing[@]} -gt 0 ]]; then
+  printf '\033[33m[yt-video] Aviso: faltan dependencias óptimas (%s). Ejecuta '\''chezmoi apply'\''.\033[0m\n' "${_missing[*]}" >&2
+fi
+
 # Directorio de descarga predeterminado
 DEST_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
 mkdir -p "$DEST_DIR" 2>/dev/null || true
