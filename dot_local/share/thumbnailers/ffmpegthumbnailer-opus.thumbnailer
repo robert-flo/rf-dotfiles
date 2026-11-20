@@ -1,0 +1,4 @@
+[Thumbnailer Entry]
+TryExec=ffmpegthumbnailer
+Exec=ffmpegthumbnailer -s %s -i %i -o %o -c png -t 10 -a
+MimeType=audio/x-opus+ogg;audio/opus;
