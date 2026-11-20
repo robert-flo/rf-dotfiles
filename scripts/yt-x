@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# yt-x — Descargador especializado de videos de X (Twitter) vía yt-dlp.
+#
+# Usa las cookies de Google Chrome por defecto (soporta posts sensibles/NSFW,
+# restricción de edad y cuentas con visibilidad limitada), descarga todos los
+# videos adjuntos de un tweet en máxima calidad MP4 (horizontal o vertical)
+# con nombres de archivo limpios en /zt/yt-downloads/x/ (fallback ~/yt-downloads/x/).
+# ==============================================================================
+set -euo pipefail
+
+# Colores ANSI estándar (0-15) compatibles con modo claro y modo oscuro
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_BOLD=$'\033[1m'
+  C_BLUE=$'\033[34m'
+  C_CYAN=$'\033[36m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_DIM=$'\033[2m'
+  C_RST=$'\033[0m'
+else
+  C_BOLD=""; C_BLUE=""; C_CYAN=""; C_GREEN=""; C_YELLOW=""; C_DIM=""; C_RST=""
+fi
+
+if [[ $# -eq 0 ]]; then
+  cat << EOF
+${C_BOLD}${C_BLUE}yt-x${C_RST} — Descarga videos de X (Twitter) en máxima calidad MP4 con cookies de Chrome
+
+${C_BOLD}Uso:${C_RST}
+  ${C_GREEN}yt-x${C_RST} ${C_CYAN}[--no-cookies] [OPCIONES_YT_DLP]${C_RST} <URL_POST_X> [URL...]
+
+${C_BOLD}Opciones propias del wrapper:${C_RST}
+  ${C_CYAN}--no-cookies${C_RST}   Descarga sin leer cookies de Google Chrome (modo anónimo)
+
+${C_BOLD}Características predeterminadas:${C_RST}
+  - ${C_CYAN}Sesión:${C_RST} usa cookies de Google Chrome (--cookies-from-browser chrome) para posts sensibles/edad
+  - ${C_CYAN}Multi-video:${C_RST} descarga automáticamente todos los videos adjuntos en el mismo post
+  - ${C_CYAN}Formato:${C_RST} máxima calidad disponible (horizontal o vertical) en MP4 (-f "bv*+ba/b")
+  - ${C_CYAN}Incrustado:${C_RST} metadatos y miniatura del post en el MP4
+  - ${C_CYAN}Nombre limpio:${C_RST} @usuario - <título corto> [id].mp4 (evita nombres gigantes de tweets)
+  - ${C_CYAN}Destino:${C_RST} /zt/yt-downloads/x/ ${C_DIM}(fallback: ~/yt-downloads/x/)${C_RST}
+  - ${C_CYAN}Transparencia:${C_RST} cualquier flag adicional de yt-dlp sobreescribe los valores por defecto.
+
+${C_BOLD}Ejemplos:${C_RST}
+  ${C_GREEN}yt-x${C_RST} "https://x.com/usuario/status/123456789"              ${C_DIM}# Descargar video(s) del post con cookies de Chrome${C_RST}
+  ${C_GREEN}yt-x${C_RST} --no-cookies "https://x.com/usuario/status/123456789" ${C_DIM}# Descargar post público sin cookies${C_RST}
+  ${C_GREEN}yt-x${C_RST} --cookies-from-browser brave "https://x.com/..."      ${C_DIM}# Usar cookies de otro navegador${C_RST}
+  ${C_GREEN}yt-x${C_RST} -P ~/Videos "https://x.com/..."                       ${C_DIM}# Guardar en otra carpeta${C_RST}
+EOF
+  exit 0
+fi
+
+# Parsear flags propios del wrapper sin interferir con los flags de yt-dlp
+USE_COOKIES=true
+USER_SET_COOKIES=false
+PASS_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --no-cookies)
+      USE_COOKIES=false
+      ;;
+    --cookies|--cookies=*|--cookies-from-browser|--cookies-from-browser=*)
+      USER_SET_COOKIES=true
+      PASS_ARGS+=("$arg")
+      ;;
+    *)
+      PASS_ARGS+=("$arg")
+      ;;
+  esac
+done
+
+# Verificación ligera de dependencias óptimas (solo avisa si falta alguna)
+_missing=()
+for _bin in ffmpeg deno; do
+  command -v "$_bin" >/dev/null 2>&1 || _missing+=("$_bin")
+done
+python3 -c "import curl_cffi" 2>/dev/null || _missing+=("python-curl_cffi")
+if [[ "$USE_COOKIES" == true ]]; then
+  python3 -c "import secretstorage" 2>/dev/null || _missing+=("python-secretstorage")
+fi
+if [[ ${#_missing[@]} -gt 0 ]]; then
+  printf '%s[yt-x] Aviso: faltan dependencias óptimas (%s). Ejecuta '\''chezmoi apply'\''.%s\n' \
+    "$C_YELLOW" "${_missing[*]}" "$C_RST" >&2
+fi
+
+# Directorio base unificado (/zt/yt-downloads si /zt existe, si no ~/yt-downloads)
+if [[ -d "/zt" ]]; then
+  BASE_DIR="/zt/yt-downloads"
+else
+  BASE_DIR="$HOME/yt-downloads"
+fi
+DEST_DIR="$BASE_DIR/x"
+mkdir -p "$DEST_DIR" 2>/dev/null || true
+
+DEFAULT_ARGS=(
+  --ignore-config
+  --ignore-errors
+  --continue
+  --no-overwrites
+  -f "bv*+ba/b"
+  --merge-output-format mp4
+  --embed-metadata
+  --embed-thumbnail
+  --convert-thumbnails jpg
+  -P "$DEST_DIR"
+  -o "%(uploader_id,uploader)s - %(title).60B [%(id)s].%(ext)s"
+)
+
+if [[ "$USE_COOKIES" == true && "$USER_SET_COOKIES" == false ]]; then
+  DEFAULT_ARGS+=(--cookies-from-browser chrome)
+fi
+
+exec yt-dlp "${DEFAULT_ARGS[@]}" "${PASS_ARGS[@]}"
