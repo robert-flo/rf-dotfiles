@@ -1,0 +1,55 @@
+#!/bin/bash
+set -euo pipefail
+
+# Helper SSoT: resuelve la polaridad de la terminal actual ("light" o "dark").
+# Precedencia:
+#   1. RF_TERM_THEME explícito (light|dark)
+#   2. Emulador detectado (Ghostty -> dark, Kitty -> light)
+#   3. COLORFGBG (último campo numérico: < 8 -> dark, >= 8 -> light)
+#   4. Fallback: ~/.config/clavis/config.json (.theme.mode vía jq) o dark
+
+# 1. Contrato explícito por proceso
+case "${RF_TERM_THEME:-}" in
+    light|dark)
+        printf '%s\n' "$RF_TERM_THEME"
+        exit 0
+        ;;
+esac
+
+# 2. Detección por emulador de terminal
+if [[ -n "${GHOSTTY_RESOURCES_DIR:-}" ]] \
+    || [[ "${TERM_PROGRAM:-}" == "ghostty" ]] \
+    || [[ "${TERM:-}" == "xterm-ghostty" ]]; then
+    printf 'dark\n'
+    exit 0
+fi
+
+if [[ -n "${KITTY_PID:-}" ]] || [[ "${TERM:-}" == "xterm-kitty" ]]; then
+    printf 'light\n'
+    exit 0
+fi
+
+# 3. COLORFGBG estándar (ej. "0;15" -> bg=15 light, "15;0" -> bg=0 dark)
+if [[ -n "${COLORFGBG:-}" ]] && [[ "$COLORFGBG" == *";"* ]]; then
+    bg="${COLORFGBG##*;}"
+    if [[ "$bg" =~ ^[0-9]+$ ]]; then
+        if (( bg < 8 )); then
+            printf 'dark\n'
+        else
+            printf 'light\n'
+        fi
+        exit 0
+    fi
+fi
+
+# 4. Fallback a Clavis config o dark
+clavis_cfg="${HOME:-}/.config/clavis/config.json"
+if [[ -r "$clavis_cfg" ]] && command -v jq >/dev/null 2>&1; then
+    clavis_mode="$(jq -r '.theme.mode // empty' "$clavis_cfg" 2>/dev/null || true)"
+    if [[ "$clavis_mode" == "light" || "$clavis_mode" == "dark" ]]; then
+        printf '%s\n' "$clavis_mode"
+        exit 0
+    fi
+fi
+
+printf 'dark\n'

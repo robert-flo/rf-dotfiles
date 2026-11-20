@@ -56,6 +56,21 @@ source "$OMARCHY_PATH/default/bash/rc"
 
 alias agy="$HOME/.local/bin/agy"
 
+# Helpers de polaridad de terminal por sesión (contrato RF_TERM_THEME)
+term-light() {
+  export RF_TERM_THEME=light
+  export COLORFGBG="0;15"
+  export BAT_THEME=ansi
+  export GLAMOUR_STYLE=light
+}
+
+term-dark() {
+  export RF_TERM_THEME=dark
+  export COLORFGBG="15;0"
+  export BAT_THEME=ansi
+  export GLAMOUR_STYLE=dark
+}
+
 # try: shared tries directory /zt (Omarchy's default/bash/init hardcodes ~/Work/tries,
 # which wins over TRY_PATH). Graduated tries still go to ~/Work.
 export TRY_PATH=/zt TRY_PROJECTS="$HOME/Work"

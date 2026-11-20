@@ -46,3 +46,18 @@ end
 if test -r $HOME/.config/cursor/api-key
     set -gx CURSOR_API_KEY (string trim < $HOME/.config/cursor/api-key)
 end
+
+# 6. Helpers de polaridad de terminal por sesión (contrato RF_TERM_THEME)
+function term-light --description "Forzar polaridad clara (RF_TERM_THEME=light) en esta sesión"
+    set -gx RF_TERM_THEME light
+    set -gx COLORFGBG "0;15"
+    set -gx BAT_THEME ansi
+    set -gx GLAMOUR_STYLE light
+end
+
+function term-dark --description "Forzar polaridad oscura (RF_TERM_THEME=dark) en esta sesión"
+    set -gx RF_TERM_THEME dark
+    set -gx COLORFGBG "15;0"
+    set -gx BAT_THEME ansi
+    set -gx GLAMOUR_STYLE dark
+end
