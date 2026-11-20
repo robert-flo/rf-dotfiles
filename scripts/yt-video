@@ -17,12 +17,15 @@ con audio integrado en formato MP4, omitiendo la configuración musical local de
 Características predeterminadas:
   - Formato: hasta 1080p (video + mejor audio combinados)
   - Contenedor: MP4 con metadatos y capítulos incrustados
+  - Subtítulos: inglés (manuales o autogenerados) como pista opcional activable/ocultable (en mpv: tecla 'v')
+  - Playlist: omitida por defecto (--no-playlist). Para listas completas usa 'yt-playlist'
   - Destino: ~/Downloads/ (o directorio indicado con -P)
   - Acelerador: aria2c multiproceso (si está disponible en el sistema)
   - Transparencia: cualquier flag adicional de yt-dlp sobreescribe los valores por defecto.
 
 Ejemplos:
   yt-video https://youtu.be/Shqtk_2Jd3c
+  yt-video --sub-langs "es,en" https://youtu.be/...      # Incluir también español
   yt-video -f "bestvideo+bestaudio" https://youtu.be/...  # Máxima calidad disponible
   yt-video -P ~/Videos https://youtu.be/...              # Guardar en carpeta Videos
 EOF
@@ -35,10 +38,18 @@ mkdir -p "$DEST_DIR" 2>/dev/null || true
 
 DEFAULT_ARGS=(
   --ignore-config
+  --no-playlist
+  --ignore-errors
   -f "bv*[height<=1080]+ba/b[height<=1080]"
   --merge-output-format mp4
   --embed-metadata
   --embed-chapters
+  --write-subs
+  --write-auto-subs
+  --sub-langs "en,-live_chat"
+  --sleep-subtitles 2
+  --convert-subs srt
+  --embed-subs
   -P "$DEST_DIR"
 )
 
