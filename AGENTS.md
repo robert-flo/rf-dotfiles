@@ -45,7 +45,7 @@ Archivos y enlaces que deben existir idénticos en todos los perfiles del sistem
 - `symlink__boveda`: Enlace declarativo hacia `/z-drive/boveda`.
 - `dot_Work/symlink_tries`: Enlace declarativo hacia `/z-drive/tries`.
 - `dot_config/rclone/symlink_rclone.conf`: Enlace declarativo hacia `/etc/rclone/rclone.conf`.
-- Suite global `yt-*` en `/usr/local/bin/` (`scripts/yt-audio`, `scripts/yt-audio-playlist`, `scripts/yt-video`, `scripts/yt-video-playlist`): Utilidades globales del sistema para descarga de audio Opus (individual y playlists/podcasts con `yt-dlp-music-postprocess`) y video 1080p MP4 con subtítulos EN opcionales (individual y playlists de cursos), dejando `/usr/bin/yt-dlp` 100% nativo; gestionadas vía `run_onchange_after_02-install-system-tools.sh.tmpl`.
+- Suite global `yt-*` en `/usr/local/bin/` (`scripts/yt-audio`, `scripts/yt-audio-playlist`, `scripts/yt-video`, `scripts/yt-video-playlist`, `scripts/yt-x`): Utilidades globales del sistema para descarga de audio Opus, video 1080p MP4 (horizontal/vertical con subtítulos EN opcionales) y videos de X/Twitter con cookies de Chrome, organizadas bajo `/zt/yt-downloads/{audio,audio-playlist,video,video-playlist,x}` (fallback `~/yt-downloads/`) y dejando `/usr/bin/yt-dlp` 100% nativo; gestionadas vía `run_onchange_after_02-install-system-tools.sh.tmpl`.
 
 ### 2. Perfil Clavis (`niri`, `niri-test`, `sura`)
 Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:

@@ -34,9 +34,9 @@ ${C_BOLD}Opciones propias del wrapper:${C_RST}
 
 ${C_BOLD}Características predeterminadas:${C_RST}
   - ${C_CYAN}Playlist:${C_RST} descarga completa (--yes-playlist) saltando videos no disponibles (--ignore-errors)
-  - ${C_CYAN}Organización:${C_RST} ~/Videos/Playlists/<Nombre de la Playlist>/001 - Título [id].mp4
+  - ${C_CYAN}Organización:${C_RST} /zt/yt-downloads/video-playlist/<Playlist>/001 - Título [id].mp4 ${C_DIM}(fallback: ~/yt-downloads/video-playlist/)${C_RST}
   - ${C_CYAN}Progreso:${C_RST} ~/.local/state/yt-video-playlist/<playlist_id>.archive (salta clases ya bajadas)
-  - ${C_CYAN}Formato:${C_RST} hasta 1080p (video + mejor audio combinados) en MP4
+  - ${C_CYAN}Formato:${C_RST} hasta 1080p real (horizontal o vertical) + mejor audio en MP4 (-S "res:1080")
   - ${C_CYAN}Incrustado:${C_RST} miniatura, metadatos y capítulos en cada MP4
   - ${C_CYAN}Subtítulos:${C_RST} inglés (manuales o autogenerados) como pista opcional (en mpv: tecla 'v')
   - ${C_CYAN}Protección anti-429:${C_RST} pausas cortas entre peticiones, videos y subtítulos
@@ -45,7 +45,7 @@ ${C_BOLD}Características predeterminadas:${C_RST}
 
 ${C_BOLD}Ejemplos:${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} --list "https://www.youtube.com/playlist?list=..."              ${C_DIM}# Ver clases antes de descargar${C_RST}
-  ${C_GREEN}yt-video-playlist${C_RST} "https://www.youtube.com/playlist?list=..."                     ${C_DIM}# Descargar playlist completa en ~/Videos/Playlists/${C_RST}
+  ${C_GREEN}yt-video-playlist${C_RST} "https://www.youtube.com/playlist?list=..."                     ${C_DIM}# Descargar playlist completa en /zt/yt-downloads/video-playlist/${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} --playlist-items 1-10 "https://www.youtube.com/playlist?list=..." ${C_DIM}# Descargar solo clases 1 a 10${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} -P ~/Downloads "https://www.youtube.com/playlist?list=..."        ${C_DIM}# Guardar en otra carpeta${C_RST}
 EOF
@@ -101,8 +101,13 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
     "$C_YELLOW" "${_missing[*]}" "$C_RST" >&2
 fi
 
-# Directorio base de descarga predeterminado para playlists/cursos
-DEST_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/Playlists"
+# Directorio base unificado (/zt/yt-downloads si /zt existe, si no ~/yt-downloads)
+if [[ -d "/zt" ]]; then
+  BASE_DIR="/zt/yt-downloads"
+else
+  BASE_DIR="$HOME/yt-downloads"
+fi
+DEST_DIR="$BASE_DIR/video-playlist"
 mkdir -p "$DEST_DIR" 2>/dev/null || true
 
 DEFAULT_ARGS=(
@@ -114,7 +119,8 @@ DEFAULT_ARGS=(
   --sleep-requests 1
   --sleep-interval 2
   --max-sleep-interval 5
-  -f "bv*[height<=1080]+ba/b[height<=1080]"
+  -f "bv*+ba/b"
+  -S "res:1080"
   --merge-output-format mp4
   --embed-metadata
   --embed-chapters
