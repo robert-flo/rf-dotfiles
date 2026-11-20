@@ -1,37 +1,81 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# yt-playlist — Descargador de playlists de video (1080p MP4) vía yt-dlp.
+# yt-playlist — Descargador de playlists de estudio/video (1080p MP4) vía yt-dlp.
 #
 # Ignora la configuración local de audio/música (~/.config/yt-dlp/config) y
-# descarga playlists completas en subcarpetas ordenadas con subtítulos en inglés
-# incrustados como pista opcional (soft subs).
+# descarga playlists completas en subcarpetas ordenadas (001 - Título [id].mp4),
+# con subtítulos opcionales en inglés, miniatura incrustada, pausas anti-429
+# e historial de progreso por playlist en ~/.local/state/yt-playlist/.
 # ==============================================================================
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
   cat << 'EOF'
-Uso: yt-playlist [OPCIONES_YT_DLP] <URL_PLAYLIST> [URL...]
+Uso: yt-playlist [--list | -L] [--no-archive] [OPCIONES_YT_DLP] <URL_PLAYLIST> [URL...]
 
 Descarga playlists de YouTube (y otras plataformas soportadas) en resolución máxima
 1080p con audio integrado en formato MP4, organizadas en una subcarpeta por playlist.
 
+Opciones propias del wrapper:
+  --list, -L     Inspección rápida: lista índice, duración y título de cada video sin descargar
+  --no-archive   Omite el archivo de progreso (permite re-descargar videos ya registrados)
+
 Características predeterminadas:
   - Playlist: descarga completa (--yes-playlist) saltando videos no disponibles (--ignore-errors)
-  - Organización: ~/Downloads/<Nombre de la Playlist>/01 - Título [id].mp4
-  - Reanudación: omite archivos ya descargados (--no-overwrites --continue)
+  - Organización: ~/Videos/Playlists/<Nombre de la Playlist>/001 - Título [id].mp4
+  - Progreso por playlist: ~/.local/state/yt-playlist/<playlist_id>.archive (salta clases ya bajadas)
   - Formato: hasta 1080p (video + mejor audio combinados) en MP4
+  - Miniatura, metadatos y capítulos incrustados en cada MP4
   - Subtítulos: inglés (manuales o autogenerados) como pista opcional activable/ocultable (en mpv: tecla 'v')
-  - Metadatos y capítulos incrustados
+  - Protección anti-429: pausas cortas entre peticiones, videos y subtítulos
   - Acelerador: aria2c multiproceso (si está disponible en el sistema)
   - Transparencia: cualquier flag adicional de yt-dlp sobreescribe los valores por defecto.
 
 Ejemplos:
+  yt-playlist --list "https://www.youtube.com/playlist?list=..."
   yt-playlist "https://www.youtube.com/playlist?list=..."
-  yt-playlist --playlist-items 1-5 "https://www.youtube.com/playlist?list=..."
-  yt-playlist -P ~/Videos "https://www.youtube.com/playlist?list=..."
-  yt-playlist --download-archive ~/Videos/archive.txt "https://www.youtube.com/playlist?list=..."
+  yt-playlist --playlist-items 1-10 "https://www.youtube.com/playlist?list=..."
+  yt-playlist -P ~/Downloads "https://www.youtube.com/playlist?list=..."
 EOF
   exit 0
+fi
+
+# Parsear flags propios del wrapper sin interferir con los flags de yt-dlp
+LIST_ONLY=false
+USE_ARCHIVE=true
+USER_SET_ARCHIVE=false
+PASS_ARGS=()
+PLAYLIST_ID=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --list|-L)
+      LIST_ONLY=true
+      ;;
+    --no-archive)
+      USE_ARCHIVE=false
+      ;;
+    --download-archive|--download-archive=*)
+      USER_SET_ARCHIVE=true
+      PASS_ARGS+=("$arg")
+      ;;
+    *)
+      PASS_ARGS+=("$arg")
+      if [[ -z "$PLAYLIST_ID" && "$arg" =~ [?\&]list=([A-Za-z0-9_-]+) ]]; then
+        PLAYLIST_ID="${BASH_REMATCH[1]}"
+      fi
+      ;;
+  esac
+done
+
+# Modo inspección rápida: muestra índice, duración y título sin descargar
+if [[ "$LIST_ONLY" == true ]]; then
+  exec yt-dlp \
+    --ignore-config \
+    --flat-playlist \
+    --yes-playlist \
+    --print "%(playlist_index)03d | %(duration_string)8s | %(title)s [%(id)s]" \
+    "${PASS_ARGS[@]}"
 fi
 
 # Verificación ligera de dependencias óptimas (solo avisa si falta alguna)
@@ -44,8 +88,8 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   printf '\033[33m[yt-playlist] Aviso: faltan dependencias óptimas (%s). Ejecuta '\''chezmoi apply'\''.\033[0m\n' "${_missing[*]}" >&2
 fi
 
-# Directorio base de descarga predeterminado
-DEST_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
+# Directorio base de descarga predeterminado para playlists/cursos
+DEST_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/Playlists"
 mkdir -p "$DEST_DIR" 2>/dev/null || true
 
 DEFAULT_ARGS=(
@@ -54,10 +98,15 @@ DEFAULT_ARGS=(
   --ignore-errors
   --continue
   --no-overwrites
+  --sleep-requests 1
+  --sleep-interval 2
+  --max-sleep-interval 5
   -f "bv*[height<=1080]+ba/b[height<=1080]"
   --merge-output-format mp4
   --embed-metadata
   --embed-chapters
+  --embed-thumbnail
+  --convert-thumbnails jpg
   --write-subs
   --write-auto-subs
   --sub-langs "en,-live_chat"
@@ -65,8 +114,16 @@ DEFAULT_ARGS=(
   --convert-subs srt
   --embed-subs
   -P "$DEST_DIR"
-  -o "%(playlist_title,playlist_id)s/%(playlist_index)02d - %(title)s [%(id)s].%(ext)s"
+  -o "%(playlist_title,playlist_id)s/%(playlist_index)03d - %(title)s [%(id)s].%(ext)s"
 )
+
+# Archivo de progreso por playlist fuera de la carpeta de videos
+if [[ "$USE_ARCHIVE" == true && "$USER_SET_ARCHIVE" == false ]]; then
+  STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/yt-playlist"
+  mkdir -p "$STATE_DIR" 2>/dev/null || true
+  ARCHIVE_NAME="${PLAYLIST_ID:-default}.archive"
+  DEFAULT_ARGS+=(--download-archive "$STATE_DIR/$ARCHIVE_NAME")
+fi
 
 # Aceleración paralela con aria2c para evitar el límite de velocidad por conexión
 if command -v aria2c >/dev/null 2>&1; then
@@ -76,4 +133,4 @@ if command -v aria2c >/dev/null 2>&1; then
   )
 fi
 
-exec yt-dlp "${DEFAULT_ARGS[@]}" "$@"
+exec yt-dlp "${DEFAULT_ARGS[@]}" "${PASS_ARGS[@]}"
