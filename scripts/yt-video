@@ -16,8 +16,9 @@ con audio integrado en formato MP4, omitiendo la configuración musical local de
 
 Características predeterminadas:
   - Formato: hasta 1080p (video + mejor audio combinados)
-  - Contenedor: MP4 con metadatos y capítulos incrustados
+  - Contenedor: MP4 con metadatos, capítulos y miniatura incrustados
   - Subtítulos: inglés (manuales o autogenerados) como pista opcional activable/ocultable (en mpv: tecla 'v')
+  - Reanudación: --continue --no-overwrites y protección ligera anti-429 (--sleep-requests 1)
   - Playlist: omitida por defecto (--no-playlist). Para listas completas usa 'yt-playlist'
   - Destino: ~/Downloads/ (o directorio indicado con -P)
   - Acelerador: aria2c multiproceso (si está disponible en el sistema)
@@ -50,10 +51,15 @@ DEFAULT_ARGS=(
   --ignore-config
   --no-playlist
   --ignore-errors
+  --continue
+  --no-overwrites
+  --sleep-requests 1
   -f "bv*[height<=1080]+ba/b[height<=1080]"
   --merge-output-format mp4
   --embed-metadata
   --embed-chapters
+  --embed-thumbnail
+  --convert-thumbnails jpg
   --write-subs
   --write-auto-subs
   --sub-langs "en,-live_chat"
