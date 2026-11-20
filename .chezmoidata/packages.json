@@ -78,6 +78,7 @@
       "pnpm",
       "polkit-gnome",
       "python-cairo",
+      "python-curl_cffi",
       "python-evdev",
       "python-gobject",
       "python-mutagen",

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# yt-playlist — Descargador de playlists de video (1080p MP4) vía yt-dlp.
+#
+# Ignora la configuración local de audio/música (~/.config/yt-dlp/config) y
+# descarga playlists completas en subcarpetas ordenadas con subtítulos en inglés
+# incrustados como pista opcional (soft subs).
+# ==============================================================================
+set -euo pipefail
+
+if [[ $# -eq 0 ]]; then
+  cat << 'EOF'
+Uso: yt-playlist [OPCIONES_YT_DLP] <URL_PLAYLIST> [URL...]
+
+Descarga playlists de YouTube (y otras plataformas soportadas) en resolución máxima
+1080p con audio integrado en formato MP4, organizadas en una subcarpeta por playlist.
+
+Características predeterminadas:
+  - Playlist: descarga completa (--yes-playlist) saltando videos no disponibles (--ignore-errors)
+  - Organización: ~/Downloads/<Nombre de la Playlist>/01 - Título [id].mp4
+  - Reanudación: omite archivos ya descargados (--no-overwrites --continue)
+  - Formato: hasta 1080p (video + mejor audio combinados) en MP4
+  - Subtítulos: inglés (manuales o autogenerados) como pista opcional activable/ocultable (en mpv: tecla 'v')
+  - Metadatos y capítulos incrustados
+  - Acelerador: aria2c multiproceso (si está disponible en el sistema)
+  - Transparencia: cualquier flag adicional de yt-dlp sobreescribe los valores por defecto.
+
+Ejemplos:
+  yt-playlist "https://www.youtube.com/playlist?list=..."
+  yt-playlist --playlist-items 1-5 "https://www.youtube.com/playlist?list=..."
+  yt-playlist -P ~/Videos "https://www.youtube.com/playlist?list=..."
+  yt-playlist --download-archive ~/Videos/archive.txt "https://www.youtube.com/playlist?list=..."
+EOF
+  exit 0
+fi
+
+# Directorio base de descarga predeterminado
+DEST_DIR="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
+mkdir -p "$DEST_DIR" 2>/dev/null || true
+
+DEFAULT_ARGS=(
+  --ignore-config
+  --yes-playlist
+  --ignore-errors
+  --continue
+  --no-overwrites
+  -f "bv*[height<=1080]+ba/b[height<=1080]"
+  --merge-output-format mp4
+  --embed-metadata
+  --embed-chapters
+  --write-subs
+  --write-auto-subs
+  --sub-langs "en,-live_chat"
+  --sleep-subtitles 2
+  --convert-subs srt
+  --embed-subs
+  -P "$DEST_DIR"
+  -o "%(playlist_title,playlist_id)s/%(playlist_index)02d - %(title)s [%(id)s].%(ext)s"
+)
+
+# Aceleración paralela con aria2c para evitar el límite de velocidad por conexión
+if command -v aria2c >/dev/null 2>&1; then
+  DEFAULT_ARGS+=(
+    --downloader aria2c
+    --downloader-args aria2c:'--continue --min-split-size=5M --max-connection-per-server=8'
+  )
+fi
+
+exec yt-dlp "${DEFAULT_ARGS[@]}" "$@"

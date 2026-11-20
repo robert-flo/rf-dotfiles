@@ -3,6 +3,7 @@
 # run_onchange_after_02-install-system-tools.sh.tmpl
 # Instalación y sincronización de herramientas globales del sistema (/usr/local/bin)
 # yt-video hash: {{ include "scripts/yt-video" | sha256sum }}
+# yt-playlist hash: {{ include "scripts/yt-playlist" | sha256sum }}
 # ==============================================================================
 set -euo pipefail
 
@@ -22,3 +23,4 @@ fi
 
 echo "==> [chezmoi] Sincronizando utilidades globales en /usr/local/bin..."
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-video" /usr/local/bin/yt-video
+$SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-playlist" /usr/local/bin/yt-playlist
