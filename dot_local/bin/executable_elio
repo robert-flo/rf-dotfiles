@@ -1,0 +1,35 @@
+#!/bin/bash
+set -euo pipefail
+
+ELIO_BIN="/usr/bin/elio"
+
+# En `elio shell init <shell>`, reescribir '/usr/bin/elio' a `command elio` para
+# que la función generada en Fish/Bash/Zsh pase por este wrapper adaptativo.
+if [[ "${1:-}" == "shell" && "${2:-}" == "init" ]]; then
+    "$ELIO_BIN" "$@" | sed "s|'$ELIO_BIN'|command elio|g"
+    exit 0
+fi
+
+# Subcomandos/flags que no deben recibir --theme (shell, portal, ayuda, versión o --theme explícito)
+case "${1:-}" in
+    shell|portal)
+        exec "$ELIO_BIN" "$@"
+        ;;
+esac
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help|-V|--version|--theme|--theme=*)
+            exec "$ELIO_BIN" "$@"
+            ;;
+    esac
+done
+
+MODE="$("$HOME/.local/bin/rf-term-theme")"
+THEME_FILE="$HOME/.config/elio/theme-${MODE}.toml"
+
+if [[ -s "$THEME_FILE" ]]; then
+    exec "$ELIO_BIN" --theme "$THEME_FILE" "$@"
+fi
+
+exec "$ELIO_BIN" "$@"

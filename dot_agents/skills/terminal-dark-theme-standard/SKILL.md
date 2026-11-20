@@ -50,8 +50,27 @@ Este documento es la **Fuente Única de Verdad (SSoT)** para configurar cualquie
 
 ---
 
-## 3. Guía de Aplicación para Nuevas Herramientas
+## 3. Contrato por Terminal (`RF_TERM_THEME`) y Guía de Aplicación
 
-* **Cursor CLI / OpenCode:** Usar fondo `#1e1e2e`, texto `#cdd6f4` y tokens de sintaxis Catppuccin Mocha.
-* **Ghostty / Alacritty:** Asignar `background = "#1e1e2e"` y la tabla ANSI de arriba.
-* **Yazi / Elio:** Usar las plantillas registradas en Chezmoi (`.upstream/*/theme-dark.toml`). Al igual que Kitty y Yazi, **Elio se mantiene desacoplado de Matugen** para evitar alteraciones cromáticas impredecibles ante cambios de wallpaper, gobernado estrictamente por las plantillas SSoT de Chezmoi.
+### Contrato de Polaridad por Proceso
+La polaridad de las terminales está **desacoplada de Clavis** (`~/.config/clavis/config.json`) y se propaga por proceso:
+
+* **Ghostty (Dark fijo):** mantiene `theme = "Solarized Dark - Patched"` en `~/.config/ghostty/config` y exporta:
+  ```ini
+  env = RF_TERM_THEME=dark
+  env = COLORFGBG=15;0
+  env = BAT_THEME=ansi
+  env = GLAMOUR_STYLE=dark
+  ```
+* **Kitty (Light fijo):** usa `current-theme-light.conf` y exporta `RF_TERM_THEME=light`, `COLORFGBG=0;15`, `BAT_THEME=ansi`, `GLAMOUR_STYLE=light`.
+* **Helper SSoT (`~/.local/bin/rf-term-theme`):** imprime `light` o `dark` con precedencia `RF_TERM_THEME` → emulador (`GHOSTTY_RESOURCES_DIR`/`TERM_PROGRAM`/`TERM`/`KITTY_PID`) → `COLORFGBG` → fallback (`clavis/config.json` o `dark`).
+* **Override por sesión:** usar `term-dark` o `term-light` (disponibles en Fish y Bash).
+
+### Herramientas CLI / TUI
+
+* **Antigravity CLI (`agy`):** el wrapper `~/.local/bin/agy` consulta `rf-term-theme` y pasa `--settings "{\"colorScheme\": \"$MODE\"}"` solo a la sesión actual, **sin mutar `~/.gemini/antigravity-cli/settings.json`**.
+* **Elio:** el wrapper `~/.local/bin/elio` consulta `rf-term-theme` y selecciona `~/.config/elio/theme-{light,dark}.toml` (desacoplado de Matugen, gestionado vía Chezmoi).
+* **Yazi:** usa **Flavors nativos** (`clavis-dark` y `clavis-light` en `~/.config/yazi/flavors/`) con autodetección OSC 11 desde `~/.config/yazi/theme.toml`.
+* **Lazygit / Delta:** `diffRenderers` consulta `rf-term-theme` y pasa `--dark --syntax-theme=ansi --paging=never` en terminales oscuras (`--light` en claras).
+* **Cursor CLI / OpenCode:** heredan `COLORFGBG=15;0` y `GLAMOUR_STYLE=dark` en Ghostty.
+* **Alacritty (referencia):** asignar `background = "#1e1e2e"` y la tabla ANSI de §2.
