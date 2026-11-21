@@ -4,16 +4,15 @@
 # For your custom configurations, put it in ./kitty.conf
 
 # Window & Ergonomics
-enable_audio_bell no
 font_size 12.0
 window_padding_width 5
-dim_opacity 0.80
-background_opacity 0.92
+background_opacity 0.85
 hide_window_decorations yes
 
 # Typography
+font_family Maple Mono NF
 # font_family CaskaydiaCove Nerd Font Mono
-font_family	JetBrainsMono Nerd Font
+# font_family JetBrainsMono Nerd Font
 bold_font auto
 italic_font auto
 bold_italic_font auto
@@ -39,19 +38,7 @@ cursor_trail 1
 # Copiar automáticamente al portapapeles cualquier texto seleccionado con el mouse
 copy_on_select yes
 
-# --- CONTROL REMOTO Y SCRIPTING ---
-
-# Permite controlar kitty mediante scripts o comandos desde la terminal
-allow_remote_control yes
-
-# Ruta del socket Unix para escuchar las peticiones de control remoto
-listen_on unix:/tmp/kitty
-
-
 # --- INTEGRACIÓN CON WAYLAND ---
-
-# Hace que kitty respete el color del tema del sistema para la barra de título en Wayland
-wayland_titlebar_color system
 
 # Fuerza el uso del servidor gráfico Wayland en Linux
 linux_display_server wayland

@@ -1,0 +1,11 @@
+// Native Wayland backdrop blur for translucent terminal emulators (Kitty & Ghostty).
+window-rule {
+    match app-id=r#"^(kitty|com\.mitchellh\.ghostty)$"#
+
+    draw-border-with-background false
+
+    background-effect {
+        blur true
+        xray false
+    }
+}

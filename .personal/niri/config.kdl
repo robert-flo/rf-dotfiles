@@ -748,6 +748,8 @@ include "obsidian-violet.kdl";
 
 include "liquidbird.kdl";
 
+include "terminals-blur.kdl";
+
 include "statindet-animations.kdl";
 
 include "statindet-colors.kdl";
