@@ -435,7 +435,7 @@ binds {
     Mod+T hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
     Mod+Return hotkey-overlay-title="Open a Terminal: ghostty" { spawn "ghostty"; }
     Mod+Grave hotkey-overlay-title="Scratchpad Terminal: ghostty" { spawn-sh "clavis-scratch-toggle.sh ghostty"; }
-    Mod+Ctrl+Return hotkey-overlay-title="Tiling Terminal Session: Herdr" { spawn "ghostty" "herdr"; }
+    Mod+Ctrl+Return hotkey-overlay-title="Tiling Terminal Session: Herdr" { spawn "ghostty" "-e" "herdr"; }
     Mod+D hotkey-overlay-title="Run Application: Orbit Radial Launcher" { spawn-sh "clavis-orbit-launcher.sh"; }
     Mod+E hotkey-overlay-title="Emoji Picker: Fuzzel" { spawn-sh "clavis-emoji-picker.sh"; }
 
