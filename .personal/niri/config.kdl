@@ -431,7 +431,7 @@ binds {
     Mod+Shift+Slash { show-hotkey-overlay; }
 
     // Suggested binds for running programs: terminal, app launcher, screen locker.
-    Mod+T hotkey-overlay-title="Open a Terminal: alacritty" { spawn "alacritty"; }
+    Mod+T hotkey-overlay-title="Open a Terminal: ghostty" { spawn "ghostty"; }
     Mod+Return hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
     Mod+Grave hotkey-overlay-title="Scratchpad Terminal: kitty" { spawn-sh "clavis-scratch-toggle.sh kitty"; }
     Mod+Ctrl+Return hotkey-overlay-title="Tiling Terminal Session: Herdr" { spawn "kitty" "herdr"; }
