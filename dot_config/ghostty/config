@@ -10,7 +10,9 @@ env = BAT_THEME=ansi
 env = GLAMOUR_STYLE=dark
 
 # Font
-font-family = "BlexMono Nerd Font"
+font-family = "Maple Mono NF"
+# font-family = "CaskaydiaCove Nerd Font Mono"
+# font-family = "BlexMono Nerd Font"
 # font-family = "PlemolJP Console NF"
 # font-family = "JetBrainsMono Nerd Font"
 
