@@ -56,6 +56,9 @@ source "$OMARCHY_PATH/default/bash/rc"
 
 alias agy="$HOME/.local/bin/agy"
 
+# Fastfetch wrapper with sequential .icon logo rotation
+[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/bash/fastfetch.sh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/bash/fastfetch.sh"
+
 # Helpers de polaridad de terminal por sesión (contrato RF_TERM_THEME)
 term-light() {
   export RF_TERM_THEME=light
