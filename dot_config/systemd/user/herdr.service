@@ -1,0 +1,16 @@
+[Unit]
+Description=Herdr headless terminal workspace server
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/herdr server
+Restart=on-failure
+RestartSec=2
+Environment=RF_TERM_THEME=dark
+Environment=COLORFGBG=15;0
+Environment=GLAMOUR_STYLE=dark
+Environment=BAT_THEME=ansi
+
+[Install]
+WantedBy=niri.service
