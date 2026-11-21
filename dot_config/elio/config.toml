@@ -1,0 +1,56 @@
+[ui]
+show_top_bar = false
+show_hidden = true
+folders_first = true
+default_sort = "name"
+
+[preview]
+tab_width = 2
+
+[open]
+rules = [
+  { type = ["text", "code", "config"], command = "$EDITOR", terminal = true },
+]
+
+[places]
+show_devices = true
+entries = [
+  "home",
+  "desktop",
+  "documents",
+  { builtin = "downloads", icon = "" },
+  "pictures",
+  "music",
+  "videos",
+  "root",
+  { title = "/z", path = "/z", icon = "󰋊" },
+  { title = "Home Repos", path = "/z-home-repos", icon = "󰚝" },
+  { title = "Repos", path = "/z/repos", icon = "󰊢" },
+  { title = "Vaults", path = "/z/vaults", icon = "󰠮" },
+  { title = "Temp (/zt)", path = "/zt", icon = "󰪹" },
+  "trash",
+]
+
+[goto]
+entries = [
+  "top",
+  "home",
+  "config",
+  { title = "Repo root", command = "git rev-parse --show-toplevel", key = "r" },
+  { title = "HR-CLAVIS", path = "/z-home-repos/HR-CLAVIS", key = "H" },
+  { title = "Home Repos", path = "/z-home-repos", key = "p" },
+  { title = "Repos", path = "/z/repos", key = "R" },
+  { title = "Dotfiles", path = "/z/rf-dotfiles", key = "d" },
+  { title = "Vaults", path = "/z/vaults", key = "v" },
+  { title = "/z", path = "/z", key = "z" },
+  { title = "Tries", path = "/z-drive/tries", key = "w" },
+  { title = "z-drive", path = "/z-drive", key = "Z" },
+  { title = "Temp (/zt)", path = "/zt", key = "x" },
+  { builtin = "downloads", key = "D" },
+  "trash",
+]
+
+[layout.panes]
+places = 0
+files = 40
+preview = 60
