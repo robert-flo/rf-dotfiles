@@ -3,6 +3,12 @@ theme = "Solarized Dark - Patched"
 background-opacity = 0.8
 background-blur-radius = 20
 
+# Polaridad fija Dark (contrato RF_TERM_THEME)
+env = RF_TERM_THEME=dark
+env = COLORFGBG=15;0
+env = BAT_THEME=ansi
+env = GLAMOUR_STYLE=dark
+
 # Font
 font-family = "BlexMono Nerd Font"
 # font-family = "PlemolJP Console NF"

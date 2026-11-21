@@ -28,4 +28,9 @@ git:
   autoFetch: false
   parseEmoji: true
   diffRenderers:
-    - command: delta --dark --syntax-theme="Solarized (dark)" --paging=never
+    - command: >-
+        sh -c 'if [ "$("$HOME/.local/bin/rf-term-theme" 2>/dev/null || echo dark)" = light ]; then
+        exec delta --light --syntax-theme=ansi --paging=never;
+        else
+        exec delta --dark --syntax-theme=ansi --paging=never;
+        fi'

@@ -168,10 +168,10 @@ white   = "#181926"
 
 ### C. Ghostty (`~/.config/ghostty/config`)
 
-```ini
-theme = light:clavis-light,dark:clavis-dark
+En la estación de trabajo, **Ghostty tiene polaridad fija Dark** (`theme = "Solarized Dark - Patched"`) y **Kitty tiene polaridad fija Light** (contrato `RF_TERM_THEME`, ver §4). Si en algún entorno externo se necesitara un tema claro para Ghostty, usar la paleta de §2:
 
-# Definición para themes/clavis-light:
+```ini
+# Definición de referencia para un perfil claro externo de Ghostty:
 background = #eff1f5
 foreground = #3a3d52
 cursor-color = #1e66f5
@@ -199,59 +199,60 @@ palette = 15=#181926
 
 ---
 
-## 4. Guía para CLIs de IA, Markdown y TUIs (Cursor CLI, OpenCode, Agy, Bat)
+## 4. Contrato por Terminal (`RF_TERM_THEME`) y Herramientas CLI/TUI
+
+### Contrato de Polaridad por Proceso
+La polaridad de las terminales está **desacoplada de Clavis** (`~/.config/clavis/config.json`) y se propaga por proceso mediante variables de entorno:
+
+| Terminal | Polaridad fija | Variables exportadas |
+| :--- | :--- | :--- |
+| **Kitty** | `light` (`current-theme-light.conf`) | `RF_TERM_THEME=light`, `COLORFGBG=0;15`, `BAT_THEME=ansi`, `GLAMOUR_STYLE=light` |
+| **Ghostty** | `dark` (`Solarized Dark - Patched`) | `RF_TERM_THEME=dark`, `COLORFGBG=15;0`, `BAT_THEME=ansi`, `GLAMOUR_STYLE=dark` |
+
+* **Helper SSoT:** `~/.local/bin/rf-term-theme` resuelve `light` o `dark` con precedencia estricta:
+  1. `RF_TERM_THEME` explícito (`light` o `dark`).
+  2. Emulador detectado (`GHOSTTY_RESOURCES_DIR` / `TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` → `dark`; `KITTY_PID` / `TERM=xterm-kitty` → `light`).
+  3. `COLORFGBG` (segundo valor numérico `< 8` → `dark`, `>= 8` → `light`).
+  4. Fallback: `~/.config/clavis/config.json` (`.theme.mode`) o `dark`.
+* **Override por sesión:** funciones `term-light` y `term-dark` en Fish (`rf-common.fish`) y Bash (`~/.bashrc`).
 
 ### El Problema de las Herramientas CLI con Markdown y Código
-La mayoría de herramientas CLI modernas (Antigravity CLI, Cursor CLI, OpenCode, Aider, Glow, Bat) utilizan renderizadores de sintaxis como **Chroma**, **Pygments** o **Glamour**. 
+La mayoría de herramientas CLI modernas (Antigravity CLI, Cursor CLI, OpenCode, Aider, Glow, Bat) utilizan renderizadores de sintaxis como **Chroma**, **Pygments** o **Glamour**.
 Por defecto, casi todas asumen una terminal oscura y renderizan el texto plano y los comandos en color **blanco/gris claro (`#f8f8f2`)**, volviéndose invisibles sobre fondo claro.
 
 ### Reglas de Configuración para Cualquier Nueva Herramienta
 
 1. **Antigravity CLI (`agy`):**
-   * Archivo: `~/.gemini/antigravity-cli/settings.json`
-   * Clave requerida:
-     ```json
-     {
-       "colorScheme": "light"
-     }
-     ```
-   * Sincronizado permanentemente en Chezmoi vía `~/.local/bin/agy` ([executable_agy](file:///z/rf-dotfiles/dot_local/bin/executable_agy)).
+   * Wrapper `~/.local/bin/agy`: resuelve `MODE="$("$HOME/.local/bin/rf-term-theme")"` e inyecta `--settings "{\"colorScheme\": \"$MODE\"}"` **solo para la sesión actual**.
+   * **Prohibido mutar `~/.gemini/antigravity-cli/settings.json`** desde el wrapper para permitir sesiones simultáneas en Kitty (light) y Ghostty (dark).
 
-2. **Bat / Delta (Paginadores de sintaxis y git diff):**
-   * Configurar en el entorno shell (`~/.bashrc` / `config.fish`):
-     ```bash
-     export BAT_THEME="GitHub"   # o "Catppuccin Latte"
-     ```
+2. **Bat / Delta / Lazygit (Paginadores de sintaxis y git diff):**
+   * `BAT_THEME="ansi"` en ambos emuladores para heredar los colores ANSI calibrados del terminal.
+   * En `lazygit` (`~/.config/lazygit/config.yml`), `diffRenderers` consulta `rf-term-theme` y ejecuta `delta --light --syntax-theme=ansi --paging=never` en terminales claras y `--dark` en oscuras.
 
 3. **Glow / Glamour (Renderizadores de Markdown):**
-   * Variable de entorno:
-     ```bash
-     export GLAMOUR_STYLE="light"
-     ```
+   * Variable de entorno `GLAMOUR_STYLE="light"` en Kitty y `GLAMOUR_STYLE="dark"` en Ghostty.
 
 4. **Cursor CLI / OpenCode / Aider:**
-   * Cuando se configure un nuevo asistente CLI en la terminal, buscar la directiva de tema en su archivo de configuración:
-     * Si usa `light` / `dark`: fijar en `light`.
-     * Si usa nombre de tema: seleccionar `catppuccin-latte`, `github-light` o `solarized-light`.
-     * Si detecta por terminal: asegurarse de que la variable `COLORFGBG="0;15"` esté presente en el shell para indicar fondo claro a las herramientas basadas en terminfo.
+   * Asegurar `COLORFGBG="0;15"` en Kitty (ya exportado en `kitty.conf`) para que las herramientas basadas en terminfo detecten fondo claro.
 
-5. **Yazi (`~/.config/yazi/theme.toml`):**
-   * Prevenir colores `_fixed` o pasteles en `[filetype].rules`.
-   * Mapear imágenes a violeta joya (`#7c3aed`), media a teal (`#0e7490`), archivos a ámbar (`#b45309`), documentos a azul zafiro (`#0969da`), ejecutables a rojo rubí (`#d20f39`) y carpetas a azul real en negrita (`#1e66f5`).
+5. **Yazi (`~/.config/yazi/theme.toml` + `flavors/`):**
+   * Usa **Flavors nativos** con autodetección OSC 11 (`[flavor] light = "clavis-light"`, `dark = "clavis-dark"`).
+   * Los flavors se despliegan en `~/.config/yazi/flavors/clavis-{light,dark}.yazi/flavor.toml` desde `.upstream/yazi/theme-{light,dark}.toml`.
+   * Prevenir colores `_fixed` o pasteles en `[filetype].rules`: imágenes en violeta joya (`#7c3aed`), media en teal (`#0e7490`), archivos en ámbar (`#b45309`), documentos en azul zafiro (`#0969da`), ejecutables en rojo rubí (`#d20f39`) y carpetas en azul real en negrita (`#1e66f5`).
 
-6. **Elio File Manager (`~/.config/elio/theme.toml`):**
-   * **Desacoplado de Matugen:** Elio **NO** debe ser intervenido ni regenerado dinámicamente por Matugen. Utiliza estrictamente la paleta ergonómica estática del estándar SSoT gestionada e inyectada vía Chezmoi (`dot_config/elio/theme.toml.tmpl` y `.upstream/elio/theme-light.toml`).
-   * `[palette]`: Fondo cálido `bg = "#eff1f5"`, paneles `panel = "#eff1f5"`, texto carbón `text = "#3a3d52"`, selección `selected_bg = "#ccd0da"`, borde seleccionado `selected_border = "#1e66f5"`, acento `accent = "#1e66f5"`.
-   * `[classes]`: Colores de clases consistentes con el estándar (carpetas `#1e66f5`, imágenes `#7c3aed`, media `#0e7490`, docs `#0f766e`, archivos `#b45309`, código `#0969da`).
+6. **Elio File Manager (`~/.config/elio/` + `~/.local/bin/elio`):**
+   * **Desacoplado de Matugen:** utiliza las paletas estáticas SSoT desplegadas vía Chezmoi en `~/.config/elio/theme-light.toml` y `~/.config/elio/theme-dark.toml` (más `theme.toml` como fallback light).
+   * El wrapper `~/.local/bin/elio` consulta `rf-term-theme` y pasa `--theme "$HOME/.config/elio/theme-${MODE}.toml"`, dejando pasar intactos `shell`, `portal`, `-h`, `--help`, `-V`, `--version` y `--theme`.
+   * `[palette]` light: fondo cálido `bg = "#eff1f5"`, paneles `panel = "#eff1f5"`, texto carbón `text = "#3a3d52"`, selección `selected_bg = "#ccd0da"`, borde seleccionado `selected_border = "#1e66f5"`, acento `accent = "#1e66f5"`.
 
 ---
 
-## 5. Script de Verificación Rápida
+## 5. Verificación Rápida
 
-Para verificar de forma interactiva que una nueva terminal o herramienta respeta el estándar, ejecutar:
+Para verificar el contrato de polaridad en la sesión actual:
 
 ```bash
-/tmp/test_colors.sh
+rf-term-theme
+env | grep -E '^(RF_TERM_THEME|COLORFGBG|BAT_THEME|GLAMOUR_STYLE)='
 ```
-
-*(O su copia permanente en el brain del asistente: [`test_kitty_colors.sh`](file:///home/niri/.gemini/antigravity-cli/brain/56f11c6a-ced4-49c6-9e2f-3130b0f9475c/scratch/test_kitty_colors.sh)).*
