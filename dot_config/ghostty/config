@@ -83,3 +83,4 @@ keybind = alt+9=unbind
 # keybind = shift+alt+l=goto_split:right
 # keybind = shift+alt+j=goto_split:bottom
 # keybind = shift+alt+k=goto_split:top
+window-padding-color = extend
