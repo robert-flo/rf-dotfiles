@@ -94,6 +94,7 @@
       "python-pycryptodomex",
       "python-pyudev",
       "python-secretstorage",
+      "qbittorrent",
       "qt6-5compat",
       "qt6-base",
       "qt6-declarative",
