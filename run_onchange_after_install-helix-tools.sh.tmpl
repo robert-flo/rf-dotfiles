@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> [chezmoi] Instalando/actualizando oxfmt vía mise para {{ .chezmoi.username }}..."
+
+if ! command -v mise >/dev/null 2>&1; then
+  echo "==> [chezmoi] Omitiendo instalación de oxfmt (mise no disponible)."
+  exit 0
+fi
+
+status=0
+mise use -g --quiet oxfmt@latest || status=$?
+
+if [[ $status -ne 0 ]]; then
+  echo "==> [chezmoi] Aviso: falló la instalación de oxfmt vía mise (código $status); omitiendo para no bloquear chezmoi."
+fi
