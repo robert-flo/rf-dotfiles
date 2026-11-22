@@ -1,6 +1,8 @@
 disableStartupPopups: true
 notARepository: "skip"
 promptToReturnFromSubprocess: false
+confirmOnQuit: false
+quitOnTopLevelReturn: true
 update:
   method: "never"
 customCommands:
@@ -13,24 +15,42 @@ customCommands:
 gui:
   mouseEvents: false
   scrollHeight: 30
+  scrollPastBottom: true
+  sidePanelWidth: 0.25
+  expandFocusedSidePanel: true
+  mainPanelSplitMode: flexible
   nerdFontsVersion: "3"
   showBottomLine: false
   showCommandLog: false
   showListFooter: false
   showRandomTip: false
+  showFileTree: true
+  timeFormat: "02 Jan 06 15:04 MST"
+  commitLength:
+    show: true
   theme:
     activeBorderColor:
       - "magenta"
       - "bold"
     inactiveBorderColor:
       - "black"
+    branchColorPatterns:
+      ^main(/|$): green
+      ^master(/|$): green
+      ^docs(/|$): cyan
+      ^feature(/|$): yellow
+      ^staging(/|$): magenta
+os:
+  editPreset: nvim
 git:
   autoFetch: false
   parseEmoji: true
+  disableForcePushing: true
+  skipHookPrefix: WIP
+  log:
+    order: topo-order
+    showGraph: when-maximised
+    showWholeGraph: false
   diffRenderers:
     - command: >-
-        sh -c 'if [ "$("$HOME/.local/bin/rf-term-theme" 2>/dev/null || echo dark)" = light ]; then
-        exec delta --light --syntax-theme=ansi --paging=never;
-        else
-        exec delta --dark --syntax-theme=ansi --paging=never;
-        fi'
+        sh -c 'if [ "$("$HOME/.local/bin/rf-term-theme" 2>/dev/null || echo dark)" = light ]; then exec delta --light --syntax-theme=ansi --paging=never; else exec delta --dark --syntax-theme=ansi --paging=never; fi'
