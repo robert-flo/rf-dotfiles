@@ -9,7 +9,7 @@ if ! command -v mise >/dev/null 2>&1; then
 fi
 
 status=0
-mise install hunk || status=$?
+mise use -g --quiet hunk@latest || status=$?
 
 if [[ $status -ne 0 ]]; then
   echo "==> [chezmoi] Aviso: falló la instalación de hunk vía mise (código $status); omitiendo para no bloquear chezmoi."
