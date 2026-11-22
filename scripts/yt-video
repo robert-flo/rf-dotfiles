@@ -145,8 +145,11 @@ while [[ $# -gt 0 ]]; do
     -*)
       PASS_ARGS+=("$arg")
       ;;
-    *)
+    http://*|https://*|ytsearch:*|ytsearch[0-9]*:*)
       URLS+=("$arg")
+      ;;
+    *)
+      PASS_ARGS+=("$arg")
       ;;
   esac
 done
@@ -194,7 +197,7 @@ for url in "${URLS[@]}"; do
   fi
 
   if [[ "$SKIP_SUBS" == false && "$YT_SUBS_STATUS" == "ok" ]]; then
-    FINAL_ARGS+=(--embed-subs --convert-subs srt)
+    FINAL_ARGS+=(--write-subs --sub-langs "$SUB_LANGS" --embed-subs --convert-subs srt)
   fi
 
   if [[ "$USER_SET_DEST" == false ]]; then

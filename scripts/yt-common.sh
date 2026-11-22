@@ -87,6 +87,29 @@ _yt_find_sub_files() {
   find "$dest_dir" -maxdepth 1 -type f \( -name '*.srt' -o -name '*.vtt' \) 2>/dev/null | sort
 }
 
+# Ejecuta un intento de descarga de subtítulos y actualiza _sub_ok / _new_subs / _last_err.
+_yt_try_subs() {
+  local dest_dir="$1"
+  local log_file="$2"
+  local before_subs="$3"
+  local url="$4"
+  shift 4
+
+  if yt-dlp --ignore-config --no-playlist --skip-download \
+      --convert-subs srt -P "$dest_dir" "$@" "$url" >"$log_file" 2>&1; then
+    local after_subs
+    after_subs="$(_yt_find_sub_files "$dest_dir")"
+    _new_subs="$(comm -13 <(printf '%s\n' "$before_subs") <(printf '%s\n' "$after_subs") || true)"
+    if [[ -n "$_new_subs" ]] || grep -qE 'already been downloaded|Writing video subtitles to:' "$log_file"; then
+      _sub_ok=true
+      return 0
+    fi
+  else
+    _last_err="$(grep -E '^(ERROR|WARNING):.*429|^ERROR:' "$log_file" | tail -n 1 || true)"
+  fi
+  return 1
+}
+
 # Pre-chequeo y descarga de subtítulos con mitigación anti-429 antes de bajar video pesado.
 # Uso: yt_prepare_subtitles <tool> <url> <dest_dir> <sub_langs> <extra_args_nameref>
 # Retorna 0 si se puede continuar con la descarga del video, 1 si el usuario cancela.
@@ -105,7 +128,7 @@ yt_prepare_subtitles() {
     auto_langs="$sub_langs"
   fi
 
-  local before_subs after_subs new_subs
+  local before_subs
   before_subs="$(_yt_find_sub_files "$dest_dir")"
 
   printf '%s[%s] Pre-chequeando subtítulos (%s)...%s\n' \
@@ -114,77 +137,50 @@ yt_prepare_subtitles() {
   local log_file
   log_file="$(mktemp)"
 
-  local sub_ok=false
-  local last_err=""
+  local _sub_ok=false
+  local _new_subs=""
+  local _last_err=""
 
   # Intento 1: subtítulos manuales (evita el endpoint de auto-captions que suele dar 429)
-  if yt-dlp --ignore-config --no-playlist --skip-download \
-      --write-subs --sub-langs "$manual_langs" --convert-subs srt \
-      -P "$dest_dir" "${_extra_ref[@]}" "$url" >"$log_file" 2>&1; then
-    after_subs="$(_yt_find_sub_files "$dest_dir")"
-    new_subs="$(comm -13 <(printf '%s\n' "$before_subs") <(printf '%s\n' "$after_subs") || true)"
-    if [[ -n "$new_subs" ]]; then
-      sub_ok=true
-    fi
-  else
-    last_err="$(grep -E '^ERROR:' "$log_file" | tail -n 1 || true)"
-  fi
+  _yt_try_subs "$dest_dir" "$log_file" "$before_subs" "$url" \
+    --write-subs --sub-langs "$manual_langs" "${_extra_ref[@]}" || true
 
   # Intento 2: auto-captions con pausas anti-429
-  if [[ "$sub_ok" == false ]]; then
-    if yt-dlp --ignore-config --no-playlist --skip-download \
-        --write-subs --write-auto-subs --sub-langs "$auto_langs" \
-        --sleep-subtitles 3 --sleep-requests 2 --retries 3 \
-        --convert-subs srt -P "$dest_dir" "${_extra_ref[@]}" "$url" >"$log_file" 2>&1; then
-      after_subs="$(_yt_find_sub_files "$dest_dir")"
-      new_subs="$(comm -13 <(printf '%s\n' "$before_subs") <(printf '%s\n' "$after_subs") || true)"
-      if [[ -n "$new_subs" ]]; then
-        sub_ok=true
-      fi
-    else
-      last_err="$(grep -E '^ERROR:' "$log_file" | tail -n 1 || true)"
-    fi
+  if [[ "$_sub_ok" == false ]]; then
+    _yt_try_subs "$dest_dir" "$log_file" "$before_subs" "$url" \
+      --write-subs --write-auto-subs --sub-langs "$auto_langs" \
+      --sleep-subtitles 3 --sleep-requests 2 --retries 3 "${_extra_ref[@]}" || true
   fi
 
   # Intento 3 (mitigación 429): pausa + cliente android + fallback cookies Chrome
-  if [[ "$sub_ok" == false && "$last_err" == *"429"* ]]; then
+  if [[ "$_sub_ok" == false && "$_last_err" == *"429"* ]]; then
     printf '%s[%s] Aviso: HTTP 429 al descargar subtítulos. Reintentando con mitigación anti-429...%s\n' \
       "${C_YELLOW:-}" "$tool" "${C_RST:-}" >&2
     [[ "$retry_sleep" -gt 0 ]] && sleep "$retry_sleep"
 
-    if yt-dlp --ignore-config --no-playlist --skip-download \
-        --write-subs --write-auto-subs --sub-langs "$auto_langs" \
-        --extractor-args "youtube:player_client=android" \
-        --sleep-subtitles 3 --sleep-requests 2 --retries 3 \
-        --convert-subs srt -P "$dest_dir" "${_extra_ref[@]}" "$url" >"$log_file" 2>&1; then
-      after_subs="$(_yt_find_sub_files "$dest_dir")"
-      new_subs="$(comm -13 <(printf '%s\n' "$before_subs") <(printf '%s\n' "$after_subs") || true)"
-      [[ -n "$new_subs" ]] && sub_ok=true
-    else
-      last_err="$(grep -E '^ERROR:' "$log_file" | tail -n 1 || true)"
-    fi
+    _yt_try_subs "$dest_dir" "$log_file" "$before_subs" "$url" \
+      --write-subs --write-auto-subs --sub-langs "$auto_langs" \
+      --extractor-args "youtube:player_client=android" \
+      --sleep-subtitles 3 --sleep-requests 2 --retries 3 "${_extra_ref[@]}" || true
 
-    if [[ "$sub_ok" == false ]]; then
-      if yt-dlp --ignore-config --no-playlist --skip-download \
-          --write-subs --write-auto-subs --sub-langs "$auto_langs" \
-          --cookies-from-browser chrome \
-          --sleep-subtitles 3 --sleep-requests 2 \
-          --convert-subs srt -P "$dest_dir" "${_extra_ref[@]}" "$url" >"$log_file" 2>&1; then
-        after_subs="$(_yt_find_sub_files "$dest_dir")"
-        new_subs="$(comm -13 <(printf '%s\n' "$before_subs") <(printf '%s\n' "$after_subs") || true)"
-        [[ -n "$new_subs" ]] && sub_ok=true
-      else
-        last_err="$(grep -E '^ERROR:' "$log_file" | tail -n 1 || true)"
-      fi
+    if [[ "$_sub_ok" == false ]]; then
+      _yt_try_subs "$dest_dir" "$log_file" "$before_subs" "$url" \
+        --write-subs --write-auto-subs --sub-langs "$auto_langs" \
+        --cookies-from-browser chrome \
+        --sleep-subtitles 3 --sleep-requests 2 "${_extra_ref[@]}" || true
     fi
   fi
 
-  if [[ "$sub_ok" == true ]]; then
+  if [[ "$_sub_ok" == true ]]; then
     rm -f "$log_file"
     # shellcheck disable=SC2034
     YT_SUBS_STATUS="ok"
     local sub_names
-    sub_names="$(printf '%s\n' "$new_subs" | xargs -r -n1 basename | tr '\n' ' ')"
+    if [[ -n "$_new_subs" ]]; then
+      sub_names="$(printf '%s\n' "$_new_subs" | xargs -r -n1 basename | tr '\n' ' ')"
+    else
+      sub_names="(ya presentes en destino)"
+    fi
     printf '%s[%s] Subtítulos listos: %s%s\n' \
       "${C_GREEN:-}" "$tool" "$sub_names" "${C_RST:-}" >&2
     return 0
@@ -195,11 +191,11 @@ yt_prepare_subtitles() {
   YT_SUBS_STATUS="failed"
 
   # Fallo explícito (nunca ocultado tras --ignore-errors)
-  if [[ -z "$last_err" ]]; then
-    last_err="No se encontraron subtítulos disponibles para '$sub_langs'."
+  if [[ -z "$_last_err" ]]; then
+    _last_err="No se encontraron subtítulos disponibles para '$sub_langs'."
   fi
   printf '%s[%s] ERROR en subtítulos: %s%s\n' \
-    "${C_RED:-}" "$tool" "$last_err" "${C_RST:-}" >&2
+    "${C_RED:-}" "$tool" "$_last_err" "${C_RST:-}" >&2
 
   if yt_is_interactive; then
     local reply=""
@@ -222,7 +218,7 @@ yt_prepare_subtitles() {
     esac
   else
     printf '%s[%s] Aviso (modo no interactivo): el video se descargará sin subtítulos (%s).%s\n' \
-      "${C_YELLOW:-}" "$tool" "$last_err" "${C_RST:-}" >&2
+      "${C_YELLOW:-}" "$tool" "$_last_err" "${C_RST:-}" >&2
     return 0
   fi
 }
@@ -325,16 +321,21 @@ for f in video_formats:
 
 options = []
 
+def add_option(f, prefix_label, proto_override=None):
+    cname, _ = codec_group(f.get("vcodec"))
+    has_audio = f.get("acodec") not in (None, "none")
+    total_b = est_bytes(f) + (0 if has_audio else best_audio_bytes)
+    proto_lbl = proto_override or ("HLS m3u8" if is_m3u8(f) else f.get("ext", "mp4"))
+    fmt_expr = f["format_id"] if has_audio else f"{f['format_id']}+ba/b[height<=1080]"
+    options.append((
+        fmt_expr,
+        f"{prefix_label} ({cname}, {proto_lbl}) — {fmt_size(total_b)}"
+    ))
+
 # 1. 1080p Premium (HLS m3u8) primero si existe
 if premium_1080:
     premium_1080.sort(key=lambda f: (0 if is_m3u8(f) else 1, -(f.get("tbr") or 0)))
-    f = premium_1080[0]
-    cname, _ = codec_group(f.get("vcodec"))
-    total_b = est_bytes(f) + best_audio_bytes
-    options.append((
-        f["format_id"],
-        f"1080p Premium ({cname}, HLS m3u8) — {fmt_size(total_b)}"
-    ))
+    add_option(premium_1080[0], "1080p Premium")
 
 # 2. Demás variantes 1080p (vp9, av01, h264), prefiriendo https sobre m3u8 por codec
 by_codec_1080 = {}
@@ -346,12 +347,7 @@ for f in std_1080:
         by_codec_1080[cname] = (score, cprio, f)
 
 for cname, (_, _, f) in sorted(by_codec_1080.items(), key=lambda kv: kv[1][1]):
-    total_b = est_bytes(f) + best_audio_bytes
-    proto_lbl = "HLS" if is_m3u8(f) else f.get("ext", "mp4")
-    options.append((
-        f["format_id"],
-        f"1080p ({cname}, {proto_lbl}) — {fmt_size(total_b)}"
-    ))
+    add_option(f, "1080p")
 
 # 3. Mejor variante 720p disponible como opción final
 if cand_720:
@@ -360,28 +356,16 @@ if cand_720:
         codec_group(f.get("vcodec"))[1],
         -(f.get("tbr") or 0),
     ))
-    f = cand_720[0]
-    cname, _ = codec_group(f.get("vcodec"))
-    proto_lbl = "HLS" if is_m3u8(f) else f.get("ext", "mp4")
-    total_b = est_bytes(f) + best_audio_bytes
-    options.append((
-        f["format_id"],
-        f"720p ({cname}, {proto_lbl}) — {fmt_size(total_b)}"
-    ))
+    add_option(cand_720[0], "720p")
 
 # Fallback si el video no tiene ni 1080p ni 720p (ej. max 480p)
 if not options and video_formats:
     video_formats.sort(key=lambda f: (-int(f["height"]), codec_group(f.get("vcodec"))[1]))
     f = video_formats[0]
-    cname, _ = codec_group(f.get("vcodec"))
-    total_b = est_bytes(f) + best_audio_bytes
-    options.append((
-        f["format_id"],
-        f"{f['height']}p ({cname}) — {fmt_size(total_b)}"
-    ))
+    add_option(f, f"{f['height']}p")
 
-for fid, label in options:
-    print(f"{fid}\t{label}")
+for fexpr, label in options:
+    print(f"{fexpr}\t{label}")
 PYEOF
 )"
 
@@ -410,7 +394,7 @@ PYEOF
   for ((i = 0; i < count; i++)); do
     printf '  %s%d)%s %s %s[id:%s]%s\n' \
       "${C_CYAN:-}" "$((i + 1))" "${C_RST:-}" "${labels[$i]}" \
-      "${C_DIM:-}" "${ids[$i]}" "${C_RST:-}" >&2
+      "${C_DIM:-}" "${ids[$i]%%+*}" "${C_RST:-}" >&2
   done
 
   local choice=""
@@ -421,10 +405,10 @@ PYEOF
       return 1
     fi
     if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= count )); then
-      local chosen_id="${ids[$((choice - 1))]}"
-      _out_fmt="${chosen_id}+ba/b[height<=1080]"
+      local chosen_expr="${ids[$((choice - 1))]}"
+      _out_fmt="$chosen_expr"
       printf '%s[%s] Elegido: %s (%s)%s\n' \
-        "${C_GREEN:-}" "$tool" "${labels[$((choice - 1))]}" "$chosen_id" "${C_RST:-}" >&2
+        "${C_GREEN:-}" "$tool" "${labels[$((choice - 1))]}" "${chosen_expr%%+*}" "${C_RST:-}" >&2
       return 0
     fi
     printf '%sElección inválida. Ingresá un número entre 1 y %d (Enter vacío no es válido).%s\n' \
