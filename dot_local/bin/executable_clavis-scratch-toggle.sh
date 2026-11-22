@@ -51,18 +51,18 @@ spawn_kitty() {
 
 spawn_ghostty() {
     # --class sets Wayland app-id; --title pins the window title.
+    # Prefer --command="…" (one argv) over `ghostty -e cmd --flag`:
+    # - `-e "cmd --flag"` is treated as a single executable path and does not
+    #   start a live herdr child (Ghostty 1.4 logs path= but never execs).
+    # - `--command="herdr --session scratchpad"` does start herdr with --session.
     if command -v herdr >/dev/null 2>&1; then
         niri msg action spawn -- \
             ghostty --class="$APP_ID" --title=Scratchpad \
-            -e herdr --session scratchpad
+            --command="herdr --session scratchpad"
     elif command -v tmux >/dev/null 2>&1; then
         niri msg action spawn -- \
             ghostty --class="$APP_ID" --title=Scratchpad \
-            -e tmux new-session -A -D -s "$TMUX_SESSION" \
-            "fish -C 'function fish_greeting; end' -C 'set -g fish_history scratchpad'" \
-            \; set-option status off \
-            \; set-option mouse on \
-            \; set-option history-limit 50000
+            --command="tmux new-session -A -D -s ${TMUX_SESSION} \"fish -C 'function fish_greeting; end' -C 'set -g fish_history scratchpad'\" \\; set-option status off \\; set-option mouse on \\; set-option history-limit 50000"
     else
         niri msg action spawn -- \
             ghostty --class="$APP_ID" --title=Scratchpad
