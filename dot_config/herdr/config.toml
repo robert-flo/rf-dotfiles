@@ -112,12 +112,12 @@ type = "shell"
 command = 'herdr pane resize --direction right --pane "$HERDR_ACTIVE_PANE_ID"'
 
 [[keys.command]]
-key = "ctrl+shift+up"
+key = "alt+shift+up"
 type = "shell"
 command = '"$HOME/.local/bin/herdr-move-workspace" up'
 
 [[keys.command]]
-key = "ctrl+shift+down"
+key = "alt+shift+down"
 type = "shell"
 command = '"$HOME/.local/bin/herdr-move-workspace" down'
 
