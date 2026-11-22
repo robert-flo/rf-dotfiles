@@ -107,8 +107,8 @@ resolve_profile_format() {
 
   case "$profile" in
     standard)
-      _out_fmt="bv*[height<=1080][protocol!*=m3u8]+ba/bv*[height<=1080]+ba/b[height<=1080]"
-      _out_sort="res:1080,vcodec:vp9,av01"
+      _out_fmt="bv*[height<=1080][protocol!*=m3u8]+ba/b[height<=1080][protocol!*=m3u8]/bv*[height<=1080]+ba/b[height<=1080]"
+      _out_sort="res:1080,vcodec:vp9"
       ;;
     premium)
       _out_fmt="bv*[height<=1080]+ba/b[height<=1080]"
@@ -357,8 +357,11 @@ if [[ "$SKIP_SUBS" == false ]]; then
   done
 
   if [[ "$SUBS_FAILED_COUNT" -gt 0 ]]; then
-    printf '%s[yt-video-playlist] Aviso: %d video(s) sin subtítulos tras pre-chequeo anti-429.%s\n' \
+    printf '%s[yt-video-playlist] Aviso: %d video(s) sin subtítulos tras pre-chequeo anti-429:%s\n' \
       "${C_YELLOW:-}" "$SUBS_FAILED_COUNT" "${C_RST:-}" >&2
+    for failed_url in "${FAILED_SUB_URLS[@]}"; do
+      printf '  - %s\n' "$failed_url" >&2
+    done
   fi
 fi
 
@@ -382,11 +385,15 @@ if [[ "$USER_SET_FORMAT" == false ]]; then
   DEFAULT_ARGS+=(-f "$SELECTED_FORMAT" -S "$SELECTED_SORT")
 fi
 
-if [[ "$SKIP_SUBS" == false && "$SUBS_OK_COUNT" -gt 0 ]]; then
+if [[ "$SKIP_SUBS" == false && "$SUBS_OK_COUNT" -gt 0 && "$SUBS_FAILED_COUNT" -eq 0 ]]; then
+  final_sub_langs="${SUB_LANGS},-live_chat"
+  if [[ "$SUB_LANGS" == *"-live_chat"* ]]; then
+    final_sub_langs="$SUB_LANGS"
+  fi
   DEFAULT_ARGS+=(
     --write-subs
     --write-auto-subs
-    --sub-langs "$SUB_LANGS"
+    --sub-langs "$final_sub_langs"
     --sleep-subtitles 2
     --convert-subs srt
     --embed-subs

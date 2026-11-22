@@ -155,6 +155,8 @@ OUT2A="$(
 )"
 assert_not_contains "$OUT2A" "Seleccioná el perfil de calidad" "--standard omite el menú"
 assert_contains "$(cat "$LOG2A")" "bv*[height<=1080][protocol!*=m3u8]" "--standard usa selector <=1080p sin HLS"
+assert_contains "$(cat "$LOG2A")" "-S res:1080,vcodec:vp9" "--standard usa sort válido res:1080,vcodec:vp9"
+assert_contains "$(cat "$LOG2A")" "--sub-langs en,-live_chat" "Excluye -live_chat en subtítulos"
 
 LOG2B="$TMP_WORK/log2b.txt"
 OUT2B="$(
@@ -210,6 +212,8 @@ OUT5="$(
 assert_contains "$OUT5" "ERROR en subtítulos" "Reporta error de subtítulos explícitamente"
 assert_contains "$OUT5" "Aviso (modo no interactivo): el video se descargará sin subtítulos" "Avisa explícitamente en modo no interactivo"
 assert_contains "$OUT5" "sin subtítulos tras pre-chequeo anti-429" "Resume videos sin subtítulos explícitamente"
+assert_contains "$OUT5" "https://www.youtube.com/watch?v=vid001" "Identifica URL afectada (vid001)"
+assert_contains "$OUT5" "https://www.youtube.com/watch?v=vid002" "Identifica URL afectada (vid002)"
 assert_not_contains "$(cat "$LOG5")" "--ignore-errors" "No oculta errores tras --ignore-errors"
 assert_not_contains "$(cat "$LOG5")" "--embed-subs" "No intenta embeber subs cuando todos fallaron"
 
