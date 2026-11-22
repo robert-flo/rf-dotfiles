@@ -35,72 +35,61 @@ new_cwd = "follow"
 resume_agents_on_restore = true
 
 [keys]
-# action key
-prefix = "ctrl+t"
+prefix = "ctrl+space"
 
-# Reload settings
-reload_config = "prefix+r"
-resize_mode = "prefix+shift+r"
-
+reload_config = "prefix+shift+r"
 detach = "prefix+d"
-new_tab = "prefix+c"
-rename_tab = "prefix+comma"
-close_tab = "prefix+&"
-switch_tab = ["prefix+1..9", "alt+1..9"]
 
-# Moving window
+# --- Tabs ---
+new_tab = "prefix+c"
+close_tab = "prefix+shift+x"
+rename_tab = "prefix+r"
+next_tab = "prefix+n"
+previous_tab = "prefix+p"
+switch_tab = ["prefix+1..9", "alt+1..9"]
 move_tab_previous = "ctrl+shift+left"
 move_tab_next = "ctrl+shift+right"
-copy_mode = "prefix+["
-last_pane = "prefix+;"
 
+# --- Paneles ---
 focus_pane_left = ["prefix+h", "ctrl+shift+h"]
 focus_pane_down = ["prefix+j", "ctrl+shift+j"]
 focus_pane_up = ["prefix+k", "ctrl+shift+k"]
 focus_pane_right = ["prefix+l", "ctrl+shift+l"]
+split_vertical = "prefix+v"
+split_horizontal = "prefix+s"
+close_pane = "prefix+x"
+zoom = "prefix+z"
+last_pane = "prefix+;"
 
-# Workspace switching
+# --- Workspaces y UI ---
 previous_workspace = ["ctrl+shift+[", "ctrl+{"]
 next_workspace = ["ctrl+shift+]", "ctrl+}"]
+toggle_sidebar = "prefix+b"
+copy_mode = "prefix+["
+goto = "prefix+f"
+open_notification_target = "prefix+shift+n"
 
-# Splits
-split_vertical = ["prefix+|", "prefix+%", "prefix+backslash", "prefix+v"]
-split_horizontal = ["prefix+minus", 'prefix+"', "prefix+_"]
-
-goto = "prefix+u"
-open_notification_target = "prefix+shift+o"
-
-# Open current directory
+# --- Comandos y plugins ---
 [[keys.command]]
 key = "prefix+o"
 type = "shell"
 command = 'xdg-open "$HERDR_ACTIVE_PANE_CWD"'
 
-# Toggle zoom on current pane
 [[keys.command]]
-key = "prefix+z"
-type = "shell"
-command = 'herdr pane zoom --toggle --pane "$HERDR_ACTIVE_PANE_ID"'
-
-# Launch ide layout
-[[keys.command]]
-key = "prefix+shift+i"
-type = "shell"
-command = '"$HOME/.local/bin/ide"'
-
-# Kill all other panes in the current tab
-[[keys.command]]
-key = "prefix+e"
+key = "prefix+shift+e"
 type = "shell"
 command = '''herdr pane list | jq -r --arg t "$HERDR_ACTIVE_TAB_ID" --arg p "$HERDR_ACTIVE_PANE_ID" '.result.panes[] | select(.tab_id == $t and .pane_id != $p) | .pane_id' | xargs -n1 herdr pane close'''
 
-# Display lazygit
 [[keys.command]]
 key = "prefix+g"
 type = "pane"
 command = 'cd "$HERDR_ACTIVE_PANE_CWD" && lazygit'
 
-# tmux-pain-control: pane resizing
+[[keys.command]]
+key = "prefix+i"
+type = "shell"
+command = '"$HOME/.local/bin/ide"'
+
 [[keys.command]]
 key = "prefix+shift+h"
 type = "shell"
@@ -121,7 +110,6 @@ key = "prefix+shift+l"
 type = "shell"
 command = 'herdr pane resize --direction right --pane "$HERDR_ACTIVE_PANE_ID"'
 
-# Move the current workspace up/down
 [[keys.command]]
 key = "ctrl+shift+up"
 type = "shell"
@@ -132,7 +120,6 @@ key = "ctrl+shift+down"
 type = "shell"
 command = '"$HOME/.local/bin/herdr-move-workspace" down'
 
-# herdr plugin install cloudmanic/herdr-plus
 [[keys.command]]
 key = "prefix+up"
 type = "plugin_action"
@@ -145,7 +132,6 @@ type = "plugin_action"
 command = "cloudmanic.herdr-plus.quick-actions"
 description = "herdr-plus: quick actions"
 
-# herdr plugin install robert-flo/herdr-terminal-file-manager
 [[keys.command]]
 key = "prefix+y"
 type = "plugin_action"
@@ -153,7 +139,7 @@ command = "robert-flo.elio.open"
 description = "open file explorer"
 
 [[keys.command]]
-key = "prefix+Y"
+key = "prefix+shift+y"
 type = "plugin_action"
 command = "robert-flo.elio.open-tab"
 description = "open file explorer in a new tab"
