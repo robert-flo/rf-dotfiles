@@ -1,81 +1,286 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# yt-video-playlist — Descargador de playlists de estudio/video (1080p MP4).
+# yt-video-playlist — Descargador de playlists de video (<=1080p MP4).
 #
-# Descarga playlists completas en subcarpetas ordenadas (001 - Título [id].mp4),
-# con subtítulos opcionales en inglés, miniatura incrustada, pausas anti-429
-# e historial de progreso por playlist en ~/.local/state/yt-video-playlist/.
+# Selecciona un perfil único <=1080p al inicio para toda la playlist, pre-chequea
+# subtítulos con mitigación anti-429 antes de bajar los videos pesados y guarda
+# progreso por playlist en ~/.local/state/yt-video-playlist/.
 # ==============================================================================
 set -euo pipefail
 
-# Colores ANSI estándar (0-15) compatibles con modo claro y modo oscuro
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  C_BOLD=$'\033[1m'
-  C_BLUE=$'\033[34m'
-  C_CYAN=$'\033[36m'
-  C_GREEN=$'\033[32m'
-  C_YELLOW=$'\033[33m'
-  C_DIM=$'\033[2m'
-  C_RST=$'\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/yt-common.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/yt-common.sh"
+elif [[ -f "/usr/local/lib/yt-tools/yt-common.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "/usr/local/lib/yt-tools/yt-common.sh"
 else
-  C_BOLD=""; C_BLUE=""; C_CYAN=""; C_GREEN=""; C_YELLOW=""; C_DIM=""; C_RST=""
+  echo "[yt-video-playlist] Error: no se encontró yt-common.sh" >&2
+  exit 1
 fi
+
+yt_init_colors
 
 if [[ $# -eq 0 ]]; then
   cat << EOF
-${C_BOLD}${C_BLUE}yt-video-playlist${C_RST} — Descarga playlists de video/cursos en 1080p MP4 (+ subs EN opcionales)
+${C_BOLD}${C_BLUE}yt-video-playlist${C_RST} — Descarga playlists de video/cursos en <=1080p MP4 (+ pre-chequeo de subtítulos)
 
 ${C_BOLD}Uso:${C_RST}
-  ${C_GREEN}yt-video-playlist${C_RST} ${C_CYAN}[--list | -L] [--no-archive] [OPCIONES_YT_DLP]${C_RST} <URL_PLAYLIST> [URL...]
+  ${C_GREEN}yt-video-playlist${C_RST} ${C_CYAN}[--list | -L] [--no-archive] [--standard | --premium | --720p] [OPCIONES_YT_DLP]${C_RST} <URL_PLAYLIST> [URL...]
 
 ${C_BOLD}Opciones propias del wrapper:${C_RST}
   ${C_CYAN}--list, -L${C_RST}     Inspección rápida: lista índice, duración y título de cada video sin descargar
   ${C_CYAN}--no-archive${C_RST}   Omite el archivo de progreso (permite re-descargar videos ya registrados)
+  ${C_CYAN}--standard${C_RST}     Perfil 1080p Estándar/Ligero (VP9/AV1, sin Premium HLS) sin preguntar
+  ${C_CYAN}--premium${C_RST}      Perfil 1080p Premium (máxima calidad <=1080p) sin preguntar
+  ${C_CYAN}--720p${C_RST}         Perfil 720p (ligero) sin preguntar
+  ${C_CYAN}--no-subs${C_RST}      Omite el pre-chequeo y la descarga de subtítulos
 
 ${C_BOLD}Características predeterminadas:${C_RST}
-  - ${C_CYAN}Playlist:${C_RST} descarga completa (--yes-playlist) saltando videos no disponibles (--ignore-errors)
+  - ${C_CYAN}Perfil único:${C_RST} pregunta una sola vez al inicio para toda la playlist (tope duro <=1080p; bypass con -f)
+  - ${C_CYAN}Subtítulos:${C_RST} pre-chequeo anti-429 antes de bajar videos pesados (EN por defecto; avisa si falla)
   - ${C_CYAN}Organización:${C_RST} /zt/yt-downloads/video-playlist/<Playlist>/001 - Título [id].mp4 ${C_DIM}(fallback: ~/yt-downloads/video-playlist/)${C_RST}
   - ${C_CYAN}Progreso:${C_RST} ~/.local/state/yt-video-playlist/<playlist_id>.archive (salta clases ya bajadas)
-  - ${C_CYAN}Formato:${C_RST} hasta 1080p real (horizontal o vertical) + mejor audio en MP4 (-S "res:1080")
-  - ${C_CYAN}Incrustado:${C_RST} miniatura, metadatos y capítulos en cada MP4
-  - ${C_CYAN}Subtítulos:${C_RST} inglés (manuales o autogenerados) como pista opcional (en mpv: tecla 'v')
-  - ${C_CYAN}Protección anti-429:${C_RST} pausas cortas entre peticiones, videos y subtítulos
+  - ${C_CYAN}Incrustado:${C_RST} miniatura, metadatos, capítulos y subtítulos (.srt) en cada MP4
   - ${C_CYAN}Acelerador:${C_RST} aria2c multiproceso (si está disponible en el sistema)
-  - ${C_CYAN}Transparencia:${C_RST} cualquier flag adicional de yt-dlp sobreescribe los valores por defecto.
 
 ${C_BOLD}Ejemplos:${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} --list "https://www.youtube.com/playlist?list=..."              ${C_DIM}# Ver clases antes de descargar${C_RST}
-  ${C_GREEN}yt-video-playlist${C_RST} "https://www.youtube.com/playlist?list=..."                     ${C_DIM}# Descargar playlist completa en /zt/yt-downloads/video-playlist/${C_RST}
+  ${C_GREEN}yt-video-playlist${C_RST} --standard "https://www.youtube.com/playlist?list=..."          ${C_DIM}# Descargar en 1080p Estándar sin menú${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} --playlist-items 1-10 "https://www.youtube.com/playlist?list=..." ${C_DIM}# Descargar solo clases 1 a 10${C_RST}
   ${C_GREEN}yt-video-playlist${C_RST} -P ~/Downloads "https://www.youtube.com/playlist?list=..."        ${C_DIM}# Guardar en otra carpeta${C_RST}
 EOF
   exit 0
 fi
 
-# Parsear flags propios del wrapper sin interferir con los flags de yt-dlp
+# Presenta menú único de perfil <=1080p para toda la playlist.
+# Uso: select_playlist_profile <out_profile_var>
+select_playlist_profile() {
+  local -n _out_profile="$1"
+
+  printf '\n%s[yt-video-playlist] Seleccioná el perfil de calidad para toda la playlist (<=1080p):%s\n' \
+    "${C_BOLD:-}" "${C_RST:-}" >&2
+  printf '  %s1)%s 1080p Estándar/Ligero (VP9/AV1, sin Premium HLS)\n' "${C_CYAN:-}" "${C_RST:-}" >&2
+  printf '  %s2)%s 1080p Premium (máxima calidad <=1080p)\n' "${C_CYAN:-}" "${C_RST:-}" >&2
+  printf '  %s3)%s 720p (ligero)\n' "${C_CYAN:-}" "${C_RST:-}" >&2
+
+  local choice=""
+  while true; do
+    printf '%sOpción (1-3, sin default): %s' "${C_BOLD:-}" "${C_RST:-}" >&2
+    if ! read -r choice; then
+      printf '\n%s[yt-video-playlist] Selección cancelada.%s\n' "${C_RED:-}" "${C_RST:-}" >&2
+      return 1
+    fi
+    case "$choice" in
+      1)
+        _out_profile="standard"
+        printf '%s[yt-video-playlist] Perfil elegido: 1080p Estándar/Ligero%s\n' \
+          "${C_GREEN:-}" "${C_RST:-}" >&2
+        return 0
+        ;;
+      2)
+        _out_profile="premium"
+        printf '%s[yt-video-playlist] Perfil elegido: 1080p Premium%s\n' \
+          "${C_GREEN:-}" "${C_RST:-}" >&2
+        return 0
+        ;;
+      3)
+        _out_profile="720p"
+        printf '%s[yt-video-playlist] Perfil elegido: 720p (ligero)%s\n' \
+          "${C_GREEN:-}" "${C_RST:-}" >&2
+        return 0
+        ;;
+      *)
+        printf '%sElección inválida. Ingresá un número entre 1 y 3 (Enter vacío no es válido).%s\n' \
+          "${C_YELLOW:-}" "${C_RST:-}" >&2
+        ;;
+    esac
+  done
+}
+
+# Mapea el perfil elegido a selector de formato (con tope duro <=1080p) y orden.
+resolve_profile_format() {
+  local profile="$1"
+  local -n _out_fmt="$2"
+  local -n _out_sort="$3"
+
+  case "$profile" in
+    standard)
+      _out_fmt="bv*[height<=1080][protocol!*=m3u8]+ba/bv*[height<=1080]+ba/b[height<=1080]"
+      _out_sort="res:1080,vcodec:vp9,av01"
+      ;;
+    premium)
+      _out_fmt="bv*[height<=1080]+ba/b[height<=1080]"
+      _out_sort="res:1080"
+      ;;
+    720p)
+      _out_fmt="bv*[height<=720][protocol!*=m3u8]+ba/bv*[height<=720]+ba/b[height<=720]"
+      _out_sort="res:720"
+      ;;
+    *)
+      printf '%s[yt-video-playlist] Error: perfil desconocido (%s).%s\n' \
+        "${C_RED:-}" "$profile" "${C_RST:-}" >&2
+      return 1
+      ;;
+  esac
+}
+
 LIST_ONLY=false
 USE_ARCHIVE=true
 USER_SET_ARCHIVE=false
-PASS_ARGS=()
+USER_SET_FORMAT=false
+USER_SET_DEST=false
+SKIP_SUBS=false
+PASSTHROUGH_ONLY=false
+PROFILE=""
+SUB_LANGS="en"
 PLAYLIST_ID=""
 
-for arg in "$@"; do
+BASE_DIR="$(yt_base_dir)"
+DEST_DIR="$BASE_DIR/video-playlist"
+
+PASS_ARGS=()
+EXTRA_PROBE_ARGS=()
+PLAYLIST_PROBE_ARGS=()
+URLS=()
+
+end_of_opts=false
+while [[ $# -gt 0 ]]; do
+  arg="$1"
+  shift
+
+  if [[ "$end_of_opts" == true ]]; then
+    URLS+=("$arg")
+    if [[ -z "$PLAYLIST_ID" && "$arg" =~ [?\&]list=([A-Za-z0-9_-]+) ]]; then
+      PLAYLIST_ID="${BASH_REMATCH[1]}"
+    fi
+    continue
+  fi
+
   case "$arg" in
+    --)
+      end_of_opts=true
+      ;;
     --list|-L)
       LIST_ONLY=true
       ;;
     --no-archive)
       USE_ARCHIVE=false
       ;;
-    --download-archive|--download-archive=*)
+    --standard)
+      PROFILE="standard"
+      ;;
+    --premium)
+      PROFILE="premium"
+      ;;
+    --720p)
+      PROFILE="720p"
+      ;;
+    -h|--help|--version|-F|--list-formats|-J|--dump-json|--dump-single-json|--list-subs|-s|--simulate)
+      PASSTHROUGH_ONLY=true
+      PASS_ARGS+=("$arg")
+      ;;
+    --no-subs|--no-write-subs)
+      SKIP_SUBS=true
+      if [[ "$arg" == "--no-write-subs" ]]; then
+        PASS_ARGS+=("$arg")
+      fi
+      ;;
+    -f|--format)
+      USER_SET_FORMAT=true
+      PASS_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        PASS_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    -f=*|--format=*)
+      USER_SET_FORMAT=true
+      PASS_ARGS+=("$arg")
+      ;;
+    --sub-langs)
+      PASS_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        SUB_LANGS="$1"
+        PASS_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    --sub-langs=*)
+      SUB_LANGS="${arg#--sub-langs=}"
+      PASS_ARGS+=("$arg")
+      ;;
+    -P|--paths)
+      USER_SET_DEST=true
+      PASS_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        DEST_DIR="$1"
+        PASS_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    -P=*|--paths=*)
+      USER_SET_DEST=true
+      DEST_DIR="${arg#*=}"
+      PASS_ARGS+=("$arg")
+      ;;
+    --download-archive)
+      USER_SET_ARCHIVE=true
+      PASS_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        PASS_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    --download-archive=*)
       USER_SET_ARCHIVE=true
       PASS_ARGS+=("$arg")
       ;;
-    *)
+    --cookies|--cookies-from-browser|--extractor-args)
       PASS_ARGS+=("$arg")
+      EXTRA_PROBE_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        PASS_ARGS+=("$1")
+        EXTRA_PROBE_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    --cookies=*|--cookies-from-browser=*|--extractor-args=*)
+      PASS_ARGS+=("$arg")
+      EXTRA_PROBE_ARGS+=("$arg")
+      ;;
+    --playlist-items|--playlist-start|--playlist-end|--match-filter)
+      PASS_ARGS+=("$arg")
+      PLAYLIST_PROBE_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        PASS_ARGS+=("$1")
+        PLAYLIST_PROBE_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    --playlist-items=*|--playlist-start=*|--playlist-end=*|--match-filter=*)
+      PASS_ARGS+=("$arg")
+      PLAYLIST_PROBE_ARGS+=("$arg")
+      ;;
+    -o|--output|--downloader|--downloader-args|--merge-output-format|-S|--format-sort|--proxy)
+      PASS_ARGS+=("$arg")
+      if [[ $# -gt 0 ]]; then
+        PASS_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    -*)
+      PASS_ARGS+=("$arg")
+      ;;
+    http://*|https://*|ytsearch:*|ytsearch[0-9]*:*)
+      URLS+=("$arg")
       if [[ -z "$PLAYLIST_ID" && "$arg" =~ [?\&]list=([A-Za-z0-9_-]+) ]]; then
         PLAYLIST_ID="${BASH_REMATCH[1]}"
       fi
+      ;;
+    *)
+      PASS_ARGS+=("$arg")
       ;;
   esac
 done
@@ -87,54 +292,110 @@ if [[ "$LIST_ONLY" == true ]]; then
     --flat-playlist \
     --yes-playlist \
     --print "%(playlist_index)03d | %(duration_string)8s | %(title)s [%(id)s]" \
-    "${PASS_ARGS[@]}"
+    "${PASS_ARGS[@]}" "${URLS[@]}"
 fi
 
-# Verificación ligera de dependencias óptimas (solo avisa si falta alguna)
-_missing=()
-for _bin in ffmpeg aria2c deno; do
-  command -v "$_bin" >/dev/null 2>&1 || _missing+=("$_bin")
-done
-python3 -c "import curl_cffi" 2>/dev/null || _missing+=("python-curl_cffi")
-if [[ ${#_missing[@]} -gt 0 ]]; then
-  printf '%s[yt-video-playlist] Aviso: faltan dependencias óptimas (%s). Ejecuta '\''chezmoi apply'\''.%s\n' \
-    "$C_YELLOW" "${_missing[*]}" "$C_RST" >&2
+if [[ "$PASSTHROUGH_ONLY" == true || ${#URLS[@]} -eq 0 ]]; then
+  exec yt-dlp --ignore-config --yes-playlist "${PASS_ARGS[@]}" "${URLS[@]}"
 fi
 
-# Directorio base unificado (/zt/yt-downloads si /zt existe, si no ~/yt-downloads)
-if [[ -d "/zt" ]]; then
-  BASE_DIR="/zt/yt-downloads"
-else
-  BASE_DIR="$HOME/yt-downloads"
-fi
-DEST_DIR="$BASE_DIR/video-playlist"
+yt_check_deps "yt-video-playlist" ffmpeg aria2c deno
 mkdir -p "$DEST_DIR" 2>/dev/null || true
+
+# 1. Selección única de perfil <=1080p al inicio (o bypass con -f)
+SELECTED_FORMAT=""
+SELECTED_SORT=""
+if [[ "$USER_SET_FORMAT" == false ]]; then
+  if [[ -z "$PROFILE" ]]; then
+    if yt_is_interactive; then
+      if ! select_playlist_profile PROFILE; then
+        exit 1
+      fi
+    else
+      PROFILE="standard"
+      printf '%s[yt-video-playlist] Modo no interactivo: usando perfil 1080p Estándar/Ligero (<=1080p).%s\n' \
+        "${C_CYAN:-}" "${C_RST:-}" >&2
+    fi
+  fi
+  resolve_profile_format "$PROFILE" SELECTED_FORMAT SELECTED_SORT
+fi
+
+# 2. Pre-chequeo de subtítulos (anti-429) antes de bajar los videos pesados
+SUBS_OK_COUNT=0
+SUBS_FAILED_COUNT=0
+FAILED_SUB_URLS=()
+
+if [[ "$SKIP_SUBS" == false ]]; then
+  SUBS_PROBE_DIR="$(mktemp -d)"
+  trap 'rm -rf "$SUBS_PROBE_DIR"' EXIT
+
+  ENTRY_URLS=()
+  while IFS= read -r entry_line; do
+    [[ -z "$entry_line" || "$entry_line" == "NA" ]] && continue
+    ENTRY_URLS+=("$entry_line")
+  done < <(
+    yt-dlp --ignore-config --flat-playlist --yes-playlist \
+      --print "%(webpage_url)s" \
+      "${EXTRA_PROBE_ARGS[@]}" "${PLAYLIST_PROBE_ARGS[@]}" "${URLS[@]}" 2>/dev/null || true
+  )
+
+  if [[ ${#ENTRY_URLS[@]} -eq 0 ]]; then
+    ENTRY_URLS=("${URLS[@]}")
+  fi
+
+  for entry_url in "${ENTRY_URLS[@]}"; do
+    YT_SUBS_STATUS="skipped"
+    if ! yt_prepare_subtitles "yt-video-playlist" "$entry_url" "$SUBS_PROBE_DIR" "$SUB_LANGS" EXTRA_PROBE_ARGS; then
+      exit 1
+    fi
+    if [[ "$YT_SUBS_STATUS" == "ok" ]]; then
+      SUBS_OK_COUNT=$((SUBS_OK_COUNT + 1))
+    else
+      SUBS_FAILED_COUNT=$((SUBS_FAILED_COUNT + 1))
+      FAILED_SUB_URLS+=("$entry_url")
+    fi
+  done
+
+  if [[ "$SUBS_FAILED_COUNT" -gt 0 ]]; then
+    printf '%s[yt-video-playlist] Aviso: %d video(s) sin subtítulos tras pre-chequeo anti-429.%s\n' \
+      "${C_YELLOW:-}" "$SUBS_FAILED_COUNT" "${C_RST:-}" >&2
+  fi
+fi
 
 DEFAULT_ARGS=(
   --ignore-config
   --yes-playlist
-  --ignore-errors
   --continue
   --no-overwrites
   --sleep-requests 1
   --sleep-interval 2
   --max-sleep-interval 5
-  -f "bv*+ba/b"
-  -S "res:1080"
   --merge-output-format mp4
   --embed-metadata
   --embed-chapters
   --embed-thumbnail
   --convert-thumbnails jpg
-  --write-subs
-  --write-auto-subs
-  --sub-langs "en,-live_chat"
-  --sleep-subtitles 2
-  --convert-subs srt
-  --embed-subs
-  -P "$DEST_DIR"
   -o "%(playlist_title,playlist_id)s/%(playlist_index)03d - %(title)s [%(id)s].%(ext)s"
 )
+
+if [[ "$USER_SET_FORMAT" == false ]]; then
+  DEFAULT_ARGS+=(-f "$SELECTED_FORMAT" -S "$SELECTED_SORT")
+fi
+
+if [[ "$SKIP_SUBS" == false && "$SUBS_OK_COUNT" -gt 0 ]]; then
+  DEFAULT_ARGS+=(
+    --write-subs
+    --write-auto-subs
+    --sub-langs "$SUB_LANGS"
+    --sleep-subtitles 2
+    --convert-subs srt
+    --embed-subs
+  )
+fi
+
+if [[ "$USER_SET_DEST" == false ]]; then
+  DEFAULT_ARGS+=(-P "$DEST_DIR")
+fi
 
 # Archivo de progreso por playlist fuera de la carpeta de videos
 if [[ "$USE_ARCHIVE" == true && "$USER_SET_ARCHIVE" == false ]]; then
@@ -152,4 +413,4 @@ if command -v aria2c >/dev/null 2>&1; then
   )
 fi
 
-exec yt-dlp "${DEFAULT_ARGS[@]}" "${PASS_ARGS[@]}"
+yt-dlp "${DEFAULT_ARGS[@]}" "${PASS_ARGS[@]}" "${URLS[@]}"
