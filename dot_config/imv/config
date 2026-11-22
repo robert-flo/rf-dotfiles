@@ -1,0 +1,6 @@
+# Configuration for imv (see `man 5 imv`)
+
+[binds]
+# Add custom keybindings here, e.g.:
+# <Ctrl+p> = exec lp "$imv_current_file"
+# <Ctrl+x> = exec gio trash -- "$imv_current_file"; quit
