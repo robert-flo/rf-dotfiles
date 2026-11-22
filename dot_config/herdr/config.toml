@@ -76,6 +76,18 @@ key = "prefix+o"
 type = "shell"
 command = 'xdg-open "$HERDR_ACTIVE_PANE_CWD"'
 
+# Toggle zoom on current pane
+[[keys.command]]
+key = "prefix+z"
+type = "shell"
+command = 'herdr pane zoom --toggle --pane "$HERDR_ACTIVE_PANE_ID"'
+
+# Launch ide layout
+[[keys.command]]
+key = "prefix+shift+i"
+type = "shell"
+command = '"$HOME/.local/bin/ide"'
+
 # Kill all other panes in the current tab
 [[keys.command]]
 key = "prefix+e"
