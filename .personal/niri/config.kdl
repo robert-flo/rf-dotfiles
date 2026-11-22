@@ -356,10 +356,11 @@ window-rule {
     open-floating true
 }
 
-// Lyricify: TUI de letras. El .desktop lo abre con app-id lyricify (hoy vía foot).
+// Lyricify: TUI de letras. El .desktop de chezmoi lo abre en Ghostty
+// con app-id com.clavis.lyricify (--class sin punto lo ignora).
 // Niri no tiene ancla "center"; el tamaño fijo evita que ocupe una columna.
 window-rule {
-    match app-id=r#"^lyricify$"#
+    match app-id=r#"^com\.clavis\.lyricify$"#
     open-floating true
     default-column-width { fixed 500; }
     default-window-height { fixed 200; }
