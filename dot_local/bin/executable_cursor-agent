@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
+export MISE_MINIMUM_RELEASE_AGE=0
+mise use -g --quiet "cursor-agent" || exit 1
+exec mise x "cursor-agent" -- cursor-agent --yolo --trust "$@"
