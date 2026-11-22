@@ -4,6 +4,7 @@
 # Instalación y sincronización de herramientas globales del sistema (/usr/local/bin)
 # yt-audio hash: {{ include "scripts/yt-audio" | sha256sum }}
 # yt-audio-playlist hash: {{ include "scripts/yt-audio-playlist" | sha256sum }}
+# yt-common.sh hash: {{ include "scripts/yt-common.sh" | sha256sum }}
 # yt-video hash: {{ include "scripts/yt-video" | sha256sum }}
 # yt-video-playlist hash: {{ include "scripts/yt-video-playlist" | sha256sum }}
 # yt-x hash: {{ include "scripts/yt-x" | sha256sum }}
@@ -25,6 +26,7 @@ if [[ "$CAN_SUDO" == false ]]; then
 fi
 
 echo "==> [chezmoi] Sincronizando utilidades globales en /usr/local/bin..."
+$SUDO_CMD install -Dm644 "{{ .chezmoi.sourceDir }}/scripts/yt-common.sh" /usr/local/lib/yt-tools/yt-common.sh
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-audio" /usr/local/bin/yt-audio
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-audio-playlist" /usr/local/bin/yt-audio-playlist
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-video" /usr/local/bin/yt-video
