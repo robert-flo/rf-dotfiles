@@ -356,6 +356,15 @@ window-rule {
     open-floating true
 }
 
+// Lyricify: TUI de letras. El .desktop lo abre con app-id lyricify (hoy vía foot).
+// Niri no tiene ancla "center"; el tamaño fijo evita que ocupe una columna.
+window-rule {
+    match app-id=r#"^lyricify$"#
+    open-floating true
+    default-column-width { fixed 500; }
+    default-window-height { fixed 200; }
+}
+
 // Reglas de privacidad para screencast (WhatsApp, Telegram y gestores de contraseñas)
 window-rule {
     match title=r#"(?i).*whatsapp.*"#
