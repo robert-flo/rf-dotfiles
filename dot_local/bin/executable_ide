@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ "$HERDR_ENV" = "1" ]; then
+if [ "${HERDR_ENV:-}" = "1" ] || [ -n "${HERDR_ACTIVE_PANE_ID:-}" ] || [ -n "${HERDR_SOCKET_PATH:-}" ]; then
   # herdr: --ratio is the share kept by the original pane
   pane=$(herdr pane neighbor --direction left --current | jq -r '.result.neighbor | .neighbor_pane_id // .pane_id')
   pane=$(herdr pane split "$pane" --direction down --ratio 0.8 --focus | jq -r '.result.pane.pane_id')
