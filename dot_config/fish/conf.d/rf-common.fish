@@ -21,6 +21,7 @@ fish_add_path -g $HOME/.local/bin $GOPATH/bin $HOME/.cargo/bin node_modules/.bin
 
 # 3. Aliases (Craftzdog + estación)
 alias agy="$HOME/.local/bin/agy"
+alias cursor-agent="$HOME/.local/bin/cursor-agent"
 alias claude-yolo="claude --dangerously-skip-permissions"
 alias pn pnpm
 alias cz chezmoi
