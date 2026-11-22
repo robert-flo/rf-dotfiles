@@ -58,9 +58,9 @@ focus_pane_up = ["prefix+k", "ctrl+shift+k"]
 focus_pane_right = ["prefix+l", "ctrl+shift+l"]
 split_vertical = "prefix+v"
 split_horizontal = "prefix+s"
-close_pane = "prefix+x"
+close_pane = "prefix+q"
 zoom = "prefix+z"
-last_pane = "prefix+;"
+last_pane = "prefix+backtick"
 
 # --- Workspaces y UI ---
 previous_workspace = ["ctrl+shift+[", "ctrl+{"]
@@ -77,7 +77,7 @@ type = "shell"
 command = 'xdg-open "$HERDR_ACTIVE_PANE_CWD"'
 
 [[keys.command]]
-key = "prefix+shift+e"
+key = "prefix+x"
 type = "shell"
 command = '''herdr pane list | jq -r --arg t "$HERDR_ACTIVE_TAB_ID" --arg p "$HERDR_ACTIVE_PANE_ID" '.result.panes[] | select(.tab_id == $t and .pane_id != $p) | .pane_id' | xargs -n1 herdr pane close'''
 
