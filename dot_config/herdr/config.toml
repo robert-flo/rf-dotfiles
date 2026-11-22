@@ -63,8 +63,8 @@ zoom = "prefix+z"
 last_pane = "prefix+;"
 
 # --- Workspaces y UI ---
-previous_workspace = ["ctrl+shift+[", "ctrl+{"]
-next_workspace = ["ctrl+shift+]", "ctrl+}"]
+previous_workspace = "alt+shift+left"
+next_workspace = "alt+shift+right"
 toggle_sidebar = "prefix+b"
 copy_mode = "prefix+["
 goto = "prefix+f"
