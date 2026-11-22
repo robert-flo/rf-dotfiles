@@ -58,14 +58,28 @@ keybind = ctrl+shift+0=reset_font_size
 keybind = ctrl+shift+r=reload_config
 keybind = ctrl++=increase_font_size:1
 keybind = ctrl+-=decrease_font_size:1
-keybind = alt+v=new_split:right
-keybind = alt+s=new_split:down
-keybind = alt+h=goto_split:left
-keybind = alt+l=goto_split:right
-keybind = alt+j=goto_split:bottom
-keybind = alt+k=goto_split:top
-keybind = alt+n=new_tab
-keybind = shift+alt+h=goto_split:left
-keybind = shift+alt+l=goto_split:right
-keybind = shift+alt+j=goto_split:bottom
-keybind = shift+alt+k=goto_split:top
+
+# --- Adaptado para ceder splits/tabs a herdr ---
+keybind = ctrl+shift+j=unbind
+keybind = alt+1=unbind
+keybind = alt+2=unbind
+keybind = alt+3=unbind
+keybind = alt+4=unbind
+keybind = alt+5=unbind
+keybind = alt+6=unbind
+keybind = alt+7=unbind
+keybind = alt+8=unbind
+keybind = alt+9=unbind
+
+# Splits/tabs propios de Ghostty (comentados en favor de herdr; descomentar si se usan sin herdr)
+# keybind = alt+v=new_split:right
+# keybind = alt+s=new_split:down
+# keybind = alt+h=goto_split:left
+# keybind = alt+l=goto_split:right
+# keybind = alt+j=goto_split:bottom
+# keybind = alt+k=goto_split:top
+# keybind = alt+n=new_tab
+# keybind = shift+alt+h=goto_split:left
+# keybind = shift+alt+l=goto_split:right
+# keybind = shift+alt+j=goto_split:bottom
+# keybind = shift+alt+k=goto_split:top
