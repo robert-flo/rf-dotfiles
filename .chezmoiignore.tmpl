@@ -38,6 +38,7 @@ scripts/**
 # Exclude personal Clavis / Niri when not in clavis or clavis-upstream profile
 {{ if and (ne $profile "clavis") (ne $profile "clavis-upstream") }}
 .config/niri/**
+.config/niri-xdg-terminals.list
 .config/clavis/**
 .config/gtk-3.0/**
 .config/gtk-4.0/**
