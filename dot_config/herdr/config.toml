@@ -67,7 +67,7 @@ previous_workspace = "alt+shift+left"
 next_workspace = "alt+shift+right"
 toggle_sidebar = "prefix+b"
 copy_mode = "prefix+["
-goto = "prefix+f"
+goto = "prefix+shift+f"
 open_notification_target = "prefix+shift+n"
 
 # --- Comandos y plugins ---
@@ -144,6 +144,24 @@ key = "prefix+shift+y"
 type = "plugin_action"
 command = "robert-flo.elio.open-tab"
 description = "open file explorer in a new tab"
+
+[[keys.command]]
+key = "prefix+f"
+type = "plugin_action"
+command = "ravn.sessionizer.pick"
+description = "sessionizer: workspaces y repos"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "ravn.sessionizer.agents"
+description = "sessionizer: agentes"
+
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "ravn.sessionizer.trio"
+description = "sessionizer: trío desde issue"
 
 [experimental]
 pane_history = true
