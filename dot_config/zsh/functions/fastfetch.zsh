@@ -37,7 +37,7 @@ fastfetch() {
   if [[ -r "$index_file" ]]; then
     local raw_idx
     IFS= read -r raw_idx < "$index_file"
-    [[ "$raw_idx" =~ '^[0-9]+$' ]] && idx=$(( raw_idx + 0 ))
+    [[ "$raw_idx" =~ ^[0-9]+$ ]] && idx=$(( raw_idx + 0 ))
   fi
 
   idx=$(( idx % total ))

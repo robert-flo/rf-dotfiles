@@ -1,5 +1,5 @@
-# Yazi wrapper that changes cwd on exit (exposed as both yazi and fm)
-_yazi_cd() {
+# Yazi wrapper that changes cwd on exit (exposed as yazi and fm)
+yazi() {
   local tmp
   tmp=$(mktemp -t "yazi-cwd.XXXXXX") || return
   command yazi "$@" --cwd-file="$tmp"
@@ -13,10 +13,4 @@ _yazi_cd() {
   rm -f -- "$tmp"
 }
 
-yazi() {
-  _yazi_cd "$@"
-}
-
-fm() {
-  _yazi_cd "$@"
-}
+alias fm='yazi'

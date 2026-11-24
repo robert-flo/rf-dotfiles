@@ -40,16 +40,12 @@ alias cz="chezmoi"
 alias pn="pnpm"
 
 # Terminal polarity helpers (RF_TERM_THEME contract)
-term-light() {
-  export RF_TERM_THEME="light"
-  export COLORFGBG="0;15"
+_set_term_theme() {
+  export RF_TERM_THEME="$1"
+  export COLORFGBG="$2"
   export BAT_THEME="ansi"
-  export GLAMOUR_STYLE="light"
+  export GLAMOUR_STYLE="$1"
 }
 
-term-dark() {
-  export RF_TERM_THEME="dark"
-  export COLORFGBG="15;0"
-  export BAT_THEME="ansi"
-  export GLAMOUR_STYLE="dark"
-}
+term-light() { _set_term_theme "light" "0;15"; }
+term-dark() { _set_term_theme "dark" "15;0"; }
