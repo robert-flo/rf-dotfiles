@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Statusline de agy. Lee el JSON de la sesión por stdin e imprime tres renglones.
+# El JSON no se escribe a disco.
 set -euo pipefail
 export LC_ALL=C.UTF-8
 
@@ -14,22 +15,45 @@ round_nearest() {
   }'
 }
 
-used_percent() {
-  awk -v r="$1" 'BEGIN {
-    n = 100 - (r + 0) * 100
-    if (n < 0) n = 0
-    if (n > 100) n = 100
-    printf "%d", int(n + 0.5)
-  }'
+remaining_percent() {
+  local scaled
+  scaled=$(awk -v r="$1" 'BEGIN { printf "%.12f", (r + 0) * 100 }')
+  round_nearest "$scaled"
 }
 
+# Nd Nh si falta al menos un día; Nh Nm si faltan horas; si no, Nm.
 reset_label() {
   local seconds=${1%%.*}
-  if ((seconds < 48 * 3600)); then
-    printf '%dh' $((seconds / 3600))
-  else
-    printf '%dd' $((seconds / 86400))
+  local days hours minutes
+  if ((seconds < 0)); then
+    seconds=0
   fi
+  days=$((seconds / 86400))
+  hours=$(((seconds % 86400) / 3600))
+  minutes=$(((seconds % 3600) / 60))
+  if ((days >= 1)); then
+    printf '%dd %dh' "$days" "$hours"
+  elif ((hours >= 1)); then
+    printf '%dh %dm' "$hours" "$minutes"
+  else
+    printf '%dm' "$minutes"
+  fi
+}
+
+# Verde ≥50, amarillo ≥20, rojo por debajo. El texto queda contiguo para poder buscarlo.
+remain_color() {
+  local pct=$1
+  if ((pct >= 50)); then
+    printf 32
+  elif ((pct >= 20)); then
+    printf 33
+  else
+    printf 31
+  fi
+}
+
+paint() {
+  printf '\033[%sm%s\033[0m' "$1" "$2"
 }
 
 bar() {
@@ -76,6 +100,11 @@ if [[ -n $dir && -d $dir ]] && b=$(git -C "$dir" branch --show-current 2>/dev/nu
   branch=$b
 fi
 
+week_pct=$(remaining_percent "$gemini_week_remaining")
+window_pct=$(remaining_percent "$gemini_5h_remaining")
+p3_5h_pct=$(remaining_percent "$p3_5h_remaining")
+p3_week_pct=$(remaining_percent "$p3_week_remaining")
+
 line=$display
 if [[ -n $effort ]]; then
   line+=" $effort"
@@ -88,8 +117,10 @@ if [[ -n $branch ]]; then
   line+=" ⎇ $branch"
 fi
 printf '%s\n' "$line"
-printf '  Gemini 5h: %s%% usado · reset en %s | Gemini semanal: %s%% usado · reset en %s\n' \
-  "$(used_percent "$gemini_5h_remaining")" "$(reset_label "$gemini_5h_reset")" \
-  "$(used_percent "$gemini_week_remaining")" "$(reset_label "$gemini_week_reset")"
-printf '  3p 5h: %s%% usado. | 3p semanal: %s%% usado.\n' \
-  "$(used_percent "$p3_5h_remaining")" "$(used_percent "$p3_week_remaining")"
+printf '  📅 %s (renueva en %s) │ ⚡ %s (renueva en %s)\n' \
+  "$(paint "$(remain_color "$week_pct")" "Semanal disp.: ${week_pct}%")" \
+  "$(reset_label "$gemini_week_reset")" \
+  "$(paint "$(remain_color "$window_pct")" "Ventana (5h) disp.: ${window_pct}%")" \
+  "$(reset_label "$gemini_5h_reset")"
+printf '  3p 5h: %s%% disp. | 3p semanal: %s%% disp.\n' \
+  "$p3_5h_pct" "$p3_week_pct"
