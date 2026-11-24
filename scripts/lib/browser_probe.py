@@ -4,7 +4,8 @@
   gpu     --port P                       estado de chrome://gpu (decode, raster, GL) y perfiles VA-API
   video   --port P --profile D --url U --warmup S --seconds S --windows N
                                          reproduce U y mide decoder, fotogramas y CPU (mediana de N ventanas)
-  typing  --port P --url U               escribe á é ñ (wtype directo y Unicode de fcitx5) en la pestaña
+  typing  --port P --url U               escribe á é ñ (wtype directo y Unicode de fcitx5) y cuenta los
+                                         eventos de composición (>0 = Chrome usa text-input por Wayland)
   stable  --port P                       sesión viva: pestaña responde y el proceso GPU sigue vivo
 
 Todas imprimen un único objeto JSON por stdout.
@@ -23,24 +24,23 @@ import cdp  # noqa: E402
 CLK = os.sysconf("SC_CLK_TCK")
 
 
-def find_tab(port, needle, timeout=15):
+def find_tab(port, needle="", timeout=15):
+    """Primera pestaña de tipo page cuya URL contiene needle (vacío = cualquiera)."""
     end = time.time() + timeout
     while time.time() < end:
         for t in cdp.http_json(port, "/json"):
             if t.get("type") == "page" and needle in t.get("url", ""):
                 return t
         time.sleep(0.3)
-    raise RuntimeError(f"no apareció la pestaña con {needle}")
+    raise RuntimeError(f"no apareció la pestaña {needle or '(cualquiera)'}")
 
 
-def first_page(port, timeout=15):
-    end = time.time() + timeout
-    while time.time() < end:
-        for t in cdp.http_json(port, "/json"):
-            if t.get("type") == "page":
-                return t
-        time.sleep(0.3)
-    raise RuntimeError("el navegador no abrió ninguna pestaña")
+def niri_windows():
+    try:
+        out = subprocess.run(["niri", "msg", "-j", "windows"], capture_output=True, text=True, check=True).stdout
+        return json.loads(out)
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return None
 
 
 def proc_table():
@@ -93,9 +93,8 @@ def sys_busy():
 
 def wayland_native(root):
     """True si niri lista una ventana cuyo pid está en el árbol del navegador (cliente Wayland nativo)."""
-    try:
-        wins = json.loads(subprocess.run(["niri", "msg", "-j", "windows"], capture_output=True, text=True, check=True).stdout)
-    except (OSError, subprocess.CalledProcessError, ValueError):
+    wins = niri_windows()
+    if wins is None:
         return None
     tree = tree_ticks(root)
     return any(w.get("pid") in tree for w in wins)
@@ -147,7 +146,7 @@ def cmd_gpu(a):
 
 
 def cmd_video(a):
-    page = first_page(a.port)
+    page = find_tab(a.port)
     ws = cdp.WS(page["webSocketDebuggerUrl"])
     ws.call("Page.enable")
     ws.call("Media.enable")
@@ -220,14 +219,10 @@ def cmd_video(a):
 
 
 def focus_window(title_hint):
-    try:
-        wins = json.loads(subprocess.run(["niri", "msg", "-j", "windows"], capture_output=True, text=True, check=True).stdout)
-        for w in wins:
-            if title_hint in (w.get("title") or ""):
-                subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(w["id"])], check=True, capture_output=True)
-                return True
-    except (OSError, subprocess.CalledProcessError, ValueError):
-        pass
+    for w in niri_windows() or []:
+        if title_hint in (w.get("title") or ""):
+            r = subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(w["id"])], capture_output=True)
+            return r.returncode == 0
     return False
 
 
@@ -257,6 +252,7 @@ def cmd_typing(a):
         subprocess.run(["wtype", "-k", "Return"], check=False)
         time.sleep(0.5)
     fcitx = field_value(ws)
+    comp = ws.call("Runtime.evaluate", {"expression": "window.comp", "returnByValue": True})["result"]["value"]
     ws.close()
     print(
         json.dumps(
@@ -266,6 +262,7 @@ def cmd_typing(a):
                 "direct_ok": direct == "áéñ",
                 "fcitx5_unicode": fcitx,
                 "fcitx5_unicode_ok": fcitx == "áéñ",
+                "composition_events": comp,
             }
         )
     )
@@ -273,7 +270,7 @@ def cmd_typing(a):
 
 
 def cmd_stable(a):
-    page = first_page(a.port)
+    page = find_tab(a.port)
     ws = cdp.WS(page["webSocketDebuggerUrl"])
     val = ws.call("Runtime.evaluate", {"expression": "1+1", "returnByValue": True})["result"]["value"]
     ws.close()

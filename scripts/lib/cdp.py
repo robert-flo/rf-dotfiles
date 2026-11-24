@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 """Cliente mínimo de Chrome DevTools Protocol (solo stdlib) para browser-flags-bench.
 
-Subcomandos (todos hablan con el puerto de depuración remota del navegador):
-  version  PORT                       imprime Browser.getVersion como JSON
-  gpu      PORT                       imprime SystemInfo.getInfo (GPU, decode por hardware)
-  eval     PORT URL EXPR              abre URL en una pestaña nueva y evalúa EXPR (JSON)
-  page     PORT URL                   abre URL y deja la pestaña (imprime su id)
-  close    PORT TARGET_ID             cierra una pestaña
-  text     PORT URL [SECONDS]         abre URL (chrome://...) y vuelca el texto visible, incluyendo shadow DOM
+Biblioteca (la usa browser_probe.py) y un único subcomando de CLI:
+  cdp.py version PORT        imprime Browser.getVersion como JSON
 """
 import base64
 import http.client
@@ -16,7 +11,6 @@ import os
 import socket
 import struct
 import sys
-import time
 import urllib.parse
 
 
@@ -142,36 +136,10 @@ DEEP_TEXT = """
 
 
 def main(argv):
-    if len(argv) < 3:
+    if len(argv) != 3 or argv[1] != "version":
         print(__doc__, file=sys.stderr)
         return 2
-    cmd, port = argv[1], int(argv[2])
-    if cmd == "version":
-        ws = browser_ws(port)
-        print(json.dumps(ws.call("Browser.getVersion")))
-    elif cmd == "gpu":
-        ws = browser_ws(port)
-        print(json.dumps(ws.call("SystemInfo.getInfo")))
-    elif cmd in ("eval", "text", "page"):
-        url = argv[3]
-        page = new_page(port, url)
-        if cmd == "page":
-            print(page["id"])
-            return 0
-        ws = WS(page["webSocketDebuggerUrl"])
-        wait = float(argv[4]) if cmd == "text" and len(argv) > 4 else 2.0
-        time.sleep(wait if cmd == "text" else 0.5)
-        expr = DEEP_TEXT if cmd == "text" else argv[4]
-        res = ws.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True})
-        ws.close()
-        http_json(port, f"/json/close/{page['id']}")
-        val = res.get("result", {}).get("value")
-        print(val if cmd == "text" else json.dumps(val))
-    elif cmd == "close":
-        http_json(port, f"/json/close/{argv[3]}")
-    else:
-        print(__doc__, file=sys.stderr)
-        return 2
+    print(json.dumps(browser_ws(int(argv[2])).call("Browser.getVersion")))
     return 0
 
 
