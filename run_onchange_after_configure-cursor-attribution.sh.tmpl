@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_configure-cursor-attribution.sh.tmpl
+# Fija attribution.attributeCommitsToAgent=false y attributePRsToAgent=false en
+# el cli-config.json de Cursor. Con true, Cursor inyecta «Co-authored-by: Cursor»
+# en los commits y «Made with Cursor» en los PR (HR-CLAVIS#208).
+# Idempotente: no toca el resto del JSON y no escribe si ya está en false.
+# ==============================================================================
+set -euo pipefail
+
+DOT_CURSOR_DIR="{{ .chezmoi.homeDir }}/.cursor"
+CURSOR_CONFIG_DIR="{{ .chezmoi.homeDir }}/.config/cursor"
+MAIN_FILE="$DOT_CURSOR_DIR/cli-config.json"
+ALT_FILE="$CURSOR_CONFIG_DIR/cli-config.json"
+
+echo "==> [chezmoi] Desactivando atribución de Cursor para {{ .chezmoi.username }}..."
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> [chezmoi] Error: jq no está disponible para actualizar $MAIN_FILE." >&2
+  exit 1
+fi
+
+mkdir -p "$DOT_CURSOR_DIR" "$CURSOR_CONFIG_DIR"
+
+# Cursor lee ~/.cursor/cli-config.json. Si falta (o es un symlink roto), se enlaza
+# al de ~/.config/cursor, igual que el script de statusline; si tampoco existe, se crea.
+if [[ ! -e "$MAIN_FILE" ]]; then
+  [[ -e "$ALT_FILE" ]] || echo "{}" > "$ALT_FILE"
+  ln -s -f -r "$ALT_FILE" "$MAIN_FILE"
+fi
+
+# Rutas reales sin repetir (MAIN_FILE puede ser un symlink a ALT_FILE).
+targets=()
+for candidate in "$MAIN_FILE" "$ALT_FILE"; do
+  [[ -e "$candidate" ]] || continue
+  real="$(readlink -f "$candidate")"
+  seen=0
+  for t in "${targets[@]+"${targets[@]}"}"; do
+    [[ "$t" == "$real" ]] && seen=1
+  done
+  [[ "$seen" -eq 1 ]] || targets+=("$real")
+done
+
+# Primero se valida todo: un JSON inválido aborta sin haber modificado nada.
+for file in "${targets[@]}"; do
+  if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+    echo "==> [chezmoi] Error: $file no es un JSON válido (objeto). No se modificó; corregilo a mano y volvé a aplicar." >&2
+    exit 1
+  fi
+  if ! jq -e '(.attribution // {}) | type == "object"' "$file" >/dev/null 2>&1; then
+    echo "==> [chezmoi] Error: la clave \"attribution\" de $file no es un objeto. No se modificó; corregila a mano y volvé a aplicar." >&2
+    exit 1
+  fi
+done
+
+for file in "${targets[@]}"; do
+  if jq -e '.attribution.attributeCommitsToAgent == false and .attribution.attributePRsToAgent == false' "$file" >/dev/null; then
+    echo "==> [chezmoi] $file ya tiene la atribución desactivada."
+    continue
+  fi
+  tmp_file="$(mktemp "${file}.tmp.XXXXXX")"
+  if ! jq '.attribution = ((.attribution // {}) + {attributeCommitsToAgent: false, attributePRsToAgent: false})' "$file" > "$tmp_file"; then
+    rm -f "$tmp_file"
+    echo "==> [chezmoi] Error: jq falló sobre $file; no se modificó." >&2
+    exit 1
+  fi
+  chmod --reference="$file" "$tmp_file"
+  mv "$tmp_file" "$file"
+  echo "==> [chezmoi] Atribución de Cursor desactivada en $file."
+done
