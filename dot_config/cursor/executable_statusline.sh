@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# cursor-agent status line: session info + Cursor usage, adapting to render_width_chars.
-# One line when everything fits; otherwise session on line 1 and usage on line 2, shortened as needed.
+# cursor-agent status line: session on line 1, then two plain usage lines.
+# The session line shrinks to render_width_chars. Usage does not.
 # Spec: ~/.cursor/skills-cursor/statusline/SKILL.md (payload arrives as JSON on stdin).
 export LC_ALL=C.UTF-8 # ${#str} must count characters, not bytes
 input=$(cat)
@@ -185,188 +185,62 @@ fi
 
 have_usage=0
 usage_error=""
+total_pct="" auto_pct="" api_pct="" reset_days="" grok_pct="" grok_reset_days="" grok_available=""
 if [[ -s $usage_cache ]] && jq -e '.updated' "$usage_cache" >/dev/null 2>&1; then
   have_usage=1
-  IFS=$'\x1f' read -r h5 h5req h1 sess mpct apct pace runout proj reset reset_days age err gpct greset_days gavail < <(jq -r \
-    --arg sid "$sid" --argjson now "$((now * 1000))" '
-    def money: if . >= 10000 then "$\(. / 100 | round)"
-      else (round) as $c | "$\($c / 100 | floor).\($c % 100 | tostring | if length < 2 then "0" + . else . end)" end;
-    def onedec: (. * 10 | round) as $t | "\($t / 10 | floor).\($t % 10)";
-    def cal: strftime("%d/%m/%Y");
-    ((.cycle_end - .cycle_start) | if . > 0 then . else 1 end) as $len
-    | (($now - .cycle_start) / $len | if . > 0.001 then . else 0.001 end) as $elapsed
-    | (.auto_pct // .month_pct) as $auto
-    | [
-        (.h5_cents | money),
-        (.h5_requests | tostring),
-        (.h1_cents | money),
-        (if $sid != "" and .sessions[$sid] then (.sessions[$sid] | money) else "" end),
-        ($auto | floor | tostring),
-        (if .api_pct == null then "" else (.api_pct | floor | tostring) end),
-        ($auto / ($elapsed * 100) | onedec),
-        (if $auto >= 100 then "agotado"
-         elif $auto > 0 and (.cycle_start + ($now - .cycle_start) * 100 / $auto) < .cycle_end
-         then (.cycle_start + ($now - .cycle_start) * 100 / $auto) / 1000 | cal
-         else "" end),
-        (.month_spend_cents / $elapsed | money),
-        (.cycle_end / 1000 | cal),
-        (if (.cycle_end - $now) <= 0 then "0"
-         else ((.cycle_end - $now) / 86400000 | floor | tostring) end),
-        ((($now - .updated) / 1000) | floor | tostring),
-        (if .error and (.error_at // 0) > .updated then .error else "" end),
-        (if .grok_pct == null then "" else (.grok_pct | tostring) end),
-        (if .grok_reset_ms == null then ""
-         elif (.grok_reset_ms - $now) <= 0 then "0"
-         else ((.grok_reset_ms - $now) / 86400000 | floor | tostring) end),
-        (if .grok_available == null then "" elif .grok_available then "1" else "0" end)
-      ] | join("\u001f")' "$usage_cache")
+  IFS=$'\x1f' read -r total_pct auto_pct api_pct reset_days grok_pct grok_reset_days grok_available < <(jq -r \
+    --argjson now "$((now * 1000))" '
+    def days($ms):
+      if $ms == null then ""
+      elif ($ms - $now) <= 0 then "0"
+      else (($ms - $now) / 86400000 | floor | tostring)
+      end;
+    [
+      ((.month_pct // 0) | floor | tostring),
+      (if .auto_pct == null then "" else (.auto_pct | floor | tostring) end),
+      (if .api_pct == null then "" else (.api_pct | floor | tostring) end),
+      (days(.cycle_end)),
+      (if .grok_pct == null then "" else (.grok_pct | floor | tostring) end),
+      (days(.grok_reset_ms)),
+      (if .grok_available == null then "" elif .grok_available then "1" else "0" end)
+    ] | join("\u001f")' "$usage_cache")
 elif [[ -s $usage_cache ]]; then
   usage_error=$(jq -r '.error // empty' "$usage_cache" 2>/dev/null || true)
 fi
 
-pace_color() {
-  awk -v p="$1" 'BEGIN { print (p > 1.5) ? 31 : (p > 1.0) ? 33 : 32 }'
-}
-
-# Pace is three tokens (2.0 · x · ritmo · ⚠) so nothing reads as "2.0xritmo⚠".
-print_pace() { # full|compact
-  local pc
-  pc=$(pace_color "$pace")
-  case $1 in
-    full)
-      put 90 " · "
-      put "$pc" "${pace}x"
-      raw " "
-      put 90 "ritmo"
-      [[ -n $ahead ]] && raw " " && put 31 "$ahead"
-      ;;
-    compact)
-      raw " "
-      put "$pc" "${pace}x"
-      raw " "
-      put 90 "ritmo"
-      [[ -n $ahead ]] && raw " " && put 31 "$ahead"
-      ;;
-    mini)
-      raw " "
-      put "$pc" "${pace}x"
-      [[ -n $ahead ]] && raw " " && put 31 "$ahead"
-      ;;
-  esac
-}
-
-print_grok_usage() {
-  # Same wording at every width: the old "grok 0%" read as an empty model, not used quota.
-  if [[ $gavail == 0 ]]; then
-    sep
-    put 31 "cuota grok agotada"
-    return
-  fi
-  [[ -z $gpct ]] && return
-  local gc
-  gc=$(level_color "$gpct")
-  sep
-  put 90 "cuota grok usada "
-  put "$gc" "${gpct}%"
-  if [[ -n $greset_days ]]; then
-    put 90 " · resetea en ${greset_days}d"
-  fi
-}
-
-print_cycle_reset() { # inline|solo — label and date never run together without ": "
-  [[ -z $reset ]] && return
-  put 90 "Fin de ciclo"
-  raw ": "
-  put 97 "$reset"
-  if [[ -n $reset_days ]]; then
-    if [[ $reset_days == 0 ]]; then
-      put 90 " (hoy)"
-    elif [[ $reset_days == 1 ]]; then
-      put 90 " (1 día)"
-    else
-      put 90 " ($reset_days días)"
-    fi
-  fi
-}
-
-usage_line() { # full|compact|mini [show_reset=1]
-  local show_reset=${2:-1}
-  out="" plain=""
-  if ((!have_usage)); then
-    if [[ -n $usage_error ]]; then
-      put 31 "uso: $usage_error"
-    else
-      put 90 "uso: cargando…"
-    fi
-    return
-  fi
-  local ahead=""
-  [[ $(pace_color "$pace") != 32 ]] && ahead="⚠"
-  case $1 in
-    full)
-      put 90 "5h " && put 36 "$h5" && put 90 " · $h5req req · $h1/h"
-      sep
-      put 90 "auto " && put "$(level_color "$mpct")" "$(bar "$mpct" 10) $mpct%"
-      print_pace full
-      [[ -n $runout ]] && put 31 " · agota el $runout"
-      [[ -n $apct ]] && put 90 " · api " && put "$(level_color "$apct")" "$apct%"
-      put 90 " · proy $proj"
-      print_grok_usage
-      [[ -n $sess ]] && sep && put 90 "sesión " && put 36 "$sess"
-      ;;
-    compact)
-      put 90 "5h " && put 36 "$h5" && put 90 " $h1/h"
-      sep
-      put 90 "auto " && put "$(level_color "$mpct")" "$mpct%"
-      print_pace compact
-      [[ -n $runout ]] && put 31 " → agota $runout"
-      [[ -n $apct ]] && put 90 " api " && put "$(level_color "$apct")" "$apct%"
-      print_grok_usage
-      [[ -n $sess ]] && sep && put 90 "ses " && put 36 "$sess"
-      ;;
-    mini)
-      put 36 "$h5" && raw " " && put "$(level_color "$mpct")" "$mpct%"
-      print_pace mini
-      print_grok_usage
-      ;;
-  esac
-  if [[ -n $err ]]; then
-    put 31 " ⚠ $err"
-  elif ((age > 600)); then
-    put 90 " (hace $((age / 60))m)"
-  fi
-  if ((show_reset)); then
-    sep
-    print_cycle_reset inline
-  fi
-}
-
 session_line full
-s_out=$out s_plain=$plain
-usage_line full 1
-if ((${#s_plain} + ${#SEP} + ${#plain} <= width)); then
-  printf '%s%s%s%s\n' "$s_out" "${E}[90m" "$SEP" "${E}[0m$out"
-  exit 0
-fi
-
-if ((${#s_plain} > width)); then
+if ((${#plain} > width)); then
   session_line short
-  s_out=$out
   if ((${#plain} > width)); then
     session_line bare
-    s_out=$out
   fi
 fi
-printf '%s\n' "$s_out"
-
-for level in full compact mini; do
-  usage_line "$level" 0
-  ((${#plain} <= width)) && break
-done
 printf '%s\n' "$out"
 
-if [[ -n $reset ]]; then
-  out="" plain=""
-  print_cycle_reset solo
-  printf '%s\n' "$out"
+if ((have_usage)); then
+  cursor_line="  Cursor: ${total_pct}% usado"
+  [[ -n $reset_days ]] && cursor_line+=" · reset en ${reset_days}d"
+  grok_txt=""
+  if [[ $grok_available == 0 ]]; then
+    grok_txt="agotado"
+  elif [[ -n $grok_pct ]]; then
+    grok_txt="${grok_pct}% usado"
+  fi
+  if [[ -n $grok_txt ]]; then
+    [[ -n $grok_reset_days ]] && grok_txt+=" · reset en ${grok_reset_days}d"
+    cursor_line+=" | Grok Bot: ${grok_txt}"
+  fi
+  printf '%s\n' "$cursor_line"
+  auto_txt="" api_txt=""
+  [[ -n $auto_pct ]] && auto_txt="Balde Auto: ${auto_pct}% usado."
+  [[ -n $api_pct ]] && api_txt="Balde API: ${api_pct}% usado."
+  if [[ -n $auto_txt && -n $api_txt ]]; then
+    printf '  %s | %s\n' "$auto_txt" "$api_txt"
+  elif [[ -n $auto_txt || -n $api_txt ]]; then
+    printf '  %s\n' "${auto_txt}${api_txt}"
+  fi
+elif [[ -n $usage_error ]]; then
+  printf '%s\n' "${E}[31muso: ${usage_error}${E}[0m"
+else
+  printf '%s\n' "${E}[90muso: cargando…${E}[0m"
 fi
