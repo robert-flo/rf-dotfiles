@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  printf 'usage: %s profile|sudo-state|source|source-link|lose|lose-paths|script-paths|apply|sudo-keepalive\n' "$(basename "$0")" >&2
+  printf 'usage: %s profile|sudo-state|source [--canonical]|source-link|lose|lose-paths|script-paths|apply|sudo-keepalive\n' "$(basename "$0")" >&2
   exit 2
 }
 
@@ -21,14 +21,26 @@ rf_is_source() {
 }
 
 # La fuente que chezmoi lee. Primero lo que declara `chezmoi source-path` si existe
-# (en niri, ~/.local/share/chezmoi -> /z/rf-dotfiles). En un usuario sin ese enlace
-# (niri-classic) ese directorio no existe y todo fallaba: se cae al repo desde el que
-# se corre make y, después, a la copia central. Si nada sirve, error claro.
+# (en niri, ~/.local/share/chezmoi -> la copia central). Con --canonical se devuelve
+# readlink -f de esa ruta: un run_onchange que incluye .chezmoi.sourceDir cambia de
+# hash si -S es el enlace y el apply se hizo por la ruta real, y status lo lista como R.
+# Lo usan solo los targets que listan scripts (status, morning). El resto se queda con
+# el enlace: make apply usa el directorio tal cual se invocó.
+# En un usuario sin ese enlace (niri-classic) ese directorio no existe y todo fallaba:
+# se cae al repo desde el que se corre make y, después, a la copia central. Esos
+# fallbacks no se canonicalizan. Si nada sirve, error claro.
 rf_source() {
-  local declared="" candidate
+  local canonical=0 declared="" candidate
+  if [[ "${1:-}" == --canonical ]]; then
+    canonical=1
+  fi
   declared="$("${CHEZMOI_BIN:-chezmoi}" source-path 2>/dev/null)" || declared=""
   if [[ -n "$declared" && -d "$declared" ]]; then
-    printf '%s\n' "$declared"
+    if (( canonical )); then
+      printf '%s\n' "$(readlink -f -- "$declared")"
+    else
+      printf '%s\n' "$declared"
+    fi
     return 0
   fi
   for candidate in "$PWD" "$RF_CENTRAL_SOURCE"; do
@@ -270,7 +282,7 @@ rf_apply() {
 case "$1" in
   profile) rf_profile ;;
   sudo-state) rf_sudo_state ;;
-  source) rf_source ;;
+  source) rf_source "${2:-}" ;;
   source-link) rf_ensure_source_link ;;
   lose) rf_lose ;;
   lose-paths) rf_paths lose ;;

@@ -497,4 +497,47 @@ for other in omarchy nyxuri; do
 done
 unset RF_SOURCE_LINK RF_CENTRAL_SOURCE
 
+# --- status usa la ruta canónica de la fuente, no el enlace ---
+# chezmoi guarda el hash del script ya renderizado. Si el script incluye
+# .chezmoi.sourceDir, -S con el enlace y -S con la ruta real no son el mismo
+# script: tras un apply por la ruta real, status por el enlace lista R.
+canon="$tmp/canon-real"
+canon_link="$tmp/canon-link"
+canon_dest="$tmp/canon-dest"
+canon_state="$tmp/canon-state.boltdb"
+canon_cfg="$tmp/canon-chezmoi.toml"
+mkdir -p "$canon" "$canon_dest"
+printf 'original\n' > "$canon/dot_probe"
+cat > "$canon/run_onchange_after_probe.sh.tmpl" << 'EOF'
+#!/bin/sh
+# {{ .chezmoi.sourceDir }}
+exit 0
+EOF
+git -C "$canon" init -q -b master
+git_id "$canon"
+git -C "$canon" add dot_probe run_onchange_after_probe.sh.tmpl
+git -C "$canon" commit -q -m 'fuente'
+ln -s "$canon" "$canon_link"
+: > "$canon_cfg"
+/usr/bin/chezmoi --config "$canon_cfg" --color=false --refresh-externals=never \
+  --persistent-state "$canon_state" -D "$canon_dest" apply --force -S "$canon" >/dev/null
+printf 'cambiado\n' > "$canon_dest/.probe"
+cat > "$tmp/bin/chezmoi-canon" << EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == source-path ]]; then
+  printf '%s\n' '$canon_link'
+  exit 0
+fi
+exec /usr/bin/chezmoi --config '$canon_cfg' --color=false --refresh-externals=never \\
+  --persistent-state '$canon_state' -D '$canon_dest' "\$@"
+EOF
+chmod +x "$tmp/bin/chezmoi-canon"
+out="$(CHEZMOI_BIN="$tmp/bin/chezmoi-canon" run_make "$tmp/invoker" status 2>&1)"
+assert_contains "$out" "MM .probe" "status sigue mostrando MM si el archivo del home difiere"
+assert_not_contains "$out" "probe.sh" "status no lista como R un script ya corrido por la ruta canónica"
+out="$(CHEZMOI_BIN="$tmp/bin/chezmoi-canon" run_make "$tmp/invoker" morning 2>&1)"
+assert_contains "$out" ".probe" "morning sigue listando el archivo del home que difiere"
+assert_not_contains "$out" "probe.sh" "morning no lista el script cuando la fuente es el enlace a la ruta canónica"
+
 finish
