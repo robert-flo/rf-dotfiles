@@ -539,5 +539,24 @@ assert_not_contains "$out" "probe.sh" "status no lista como R un script ya corri
 out="$(CHEZMOI_BIN="$tmp/bin/chezmoi-canon" run_make "$tmp/invoker" morning 2>&1)"
 assert_contains "$out" ".probe" "morning sigue listando el archivo del home que difiere"
 assert_not_contains "$out" "probe.sh" "morning no lista el script cuando la fuente es el enlace a la ruta canónica"
+out="$(CHEZMOI_BIN="$tmp/bin/chezmoi-canon" run_make "$tmp/invoker" diff 2>&1)"
+assert_contains "$out" ".probe" "diff sigue mostrando el archivo del home que difiere"
+assert_not_contains "$out" "new file" "diff no lista como archivo nuevo un script cuyo estado está en la ruta canónica"
+assert_not_contains "$out" "probe.sh" "diff no nombra el script cuando la fuente es el enlace a la ruta canónica"
+
+# --- safe / root pasan -S canónico (el enlace no sirve para renderizar) ---
+safe_link="$tmp/safe-link"
+ln -s "$tmp/prod" "$safe_link"
+safe_real="$(readlink -f -- "$safe_link")"
+export CHEZMOI_SOURCE="$safe_link"
+: > "$tmp/status.txt"
+: > "$CHEZMOI_ACTIONS"
+out="$(DRY_RUN=1 CHEZMOI_PROFILE=clavis run_make "$tmp/invoker" safe 2>&1)"
+assert_contains "$out" "apply -S $safe_real" "DRY_RUN safe muestra apply -S con la ruta canónica"
+assert_not_contains "$out" "apply -S $safe_link" "DRY_RUN safe no pasa el enlace a apply -S"
+out="$(DRY_RUN=1 run_make "$tmp/invoker" root 2>&1)"
+assert_contains "$out" "execute-template --file $safe_real/" "DRY_RUN root renderiza desde la ruta canónica"
+assert_contains "$out" "-S $safe_real" "DRY_RUN root pasa -S canónico"
+assert_not_contains "$out" "-S $safe_link" "DRY_RUN root no pasa el enlace a -S"
 
 finish

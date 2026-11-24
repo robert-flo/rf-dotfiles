@@ -45,7 +45,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@set -euo pipefail; source="$$($(DAILY_SH) source)"; $(EXEC) $(CHEZMOI_BIN) --no-pager diff -S "$$source"
+	@set -euo pipefail; source="$$($(DAILY_SH) source --canonical)"; $(EXEC) $(CHEZMOI_BIN) --no-pager diff -S "$$source"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
