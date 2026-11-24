@@ -218,10 +218,15 @@ assert_contains "$out" "profile: omarchy" "morning respeta CHEZMOI_PROFILE=omarc
 
 # --- lose ---
 set +e
-out="$(run_make "$tmp/invoker" lose)"
+out="$(run_make "$tmp/invoker" lose 2>&1)"
 code=$?
 set -e
-assert_ne "0" "$code" "lose sale distinto de cero si hay archivos"
+assert_eq "0" "$code" "lose sale 0 si hay archivos: la guía no es un error de make"
+assert_not_contains "$out" "Error 1" "lose no imprime Error 1"
+assert_contains "$out" "Qué hacer ahora" "lose dice qué hacer cuando hay archivos"
+assert_contains "$out" "make diff" "lose apunta a make diff"
+assert_contains "$out" "chezmoi re-add" "lose apunta a re-add"
+assert_contains "$out" "make apply" "lose apunta a make apply"
 assert_contains "$out" ".config/clavis/ui-preferences.json" "lose lista ui-preferences"
 assert_contains "$out" ".config/zed/settings.json" "lose lista settings de zed"
 assert_not_contains "$out" ".config/fish/config.fish" "lose no lista un archivo que no cambia"
@@ -229,10 +234,12 @@ assert_not_contains "$out" "run_onchange_after_02-install-system-tools.sh" "lose
 
 : > "$tmp/status.txt"
 set +e
-out="$(run_make "$tmp/invoker" lose)"
+out="$(run_make "$tmp/invoker" lose 2>&1)"
 code=$?
 set -e
 assert_eq "0" "$code" "lose sale cero cuando el status está vacío"
+assert_contains "$out" "nada que perder" "lose vacío dice que no hay nada que perder"
+assert_contains "$out" "make safe" "lose vacío apunta a make safe"
 assert_not_contains "$out" ".config/" "lose vacío no imprime archivos del home"
 
 # --- pull ---
@@ -395,7 +402,8 @@ out="$(run_make "$tmp/invoker" lose 2>/dev/null)"
 code=$?
 set -e
 assert_contains "$out" ".config/zed/settings.json" "sin enlace, lose lista los archivos desde el clon invocador"
-assert_ne "0" "$code" "sin enlace, lose sale distinto de cero con archivos"
+assert_eq "0" "$code" "sin enlace, lose sale 0 con archivos: muestra la guía"
+assert_contains "$out" "Qué hacer ahora" "sin enlace, lose dice qué hacer"
 
 run_make "$tmp/invoker" pull >/dev/null 2>&1
 assert_eq "$remote_tip" "$(git -C "$tmp/invoker" rev-parse HEAD)" "sin enlace, pull actualiza el clon invocador"
@@ -421,6 +429,7 @@ assert_eq "2" "$code" "make lose con chezmoi roto falla (make propaga el 3 como 
 assert_contains "$out" "chezmoi status falló (rc=7)" "lose dice el error real de chezmoi y su rc"
 assert_contains "$out" "boom simulado" "lose muestra el stderr de chezmoi"
 assert_not_contains "$out" "✓ nada que perder" "lose no declara «nada que perder» si chezmoi falló"
+assert_not_contains "$out" "Qué hacer ahora" "lose no da la guía de archivos si chezmoi falló"
 set +e
 CHEZMOI_STATUS_FAIL=7 "$REPO_ROOT/scripts/rf-make-daily.sh" lose >/dev/null 2>&1
 code=$?
