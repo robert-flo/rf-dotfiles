@@ -164,13 +164,8 @@ out="$(
   unset CHEZMOI_PROFILE
   run_make "$tmp/invoker" morning
 )"
-case "$(id -un)" in
-  niri|niri-classic|niri-test|sura) expected_profile=clavis ;;
-  nyxuri|nyxuri-test|nyxuri-legacy) expected_profile=nyxuri ;;
-  niri-upstream) expected_profile=clavis-upstream ;;
-  *) expected_profile=omarchy ;;
-esac
-assert_contains "$out" "profile: $expected_profile" "sin CHEZMOI_PROFILE el perfil sigue al usuario ($(id -un) → $expected_profile)"
+assert_eq "niri" "$(id -un)" "esta prueba del perfil por defecto corre como niri"
+assert_contains "$out" "profile: clavis" "sin CHEZMOI_PROFILE, niri resuelve clavis"
 
 write_fake_sudo "$tmp/bin" 1
 out="$(CHEZMOI_PROFILE=omarchy run_make "$tmp/invoker" morning)"

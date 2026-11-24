@@ -26,7 +26,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
-	source="$$($(CHEZMOI) source-path)"; \
+	source="$$($(DAILY_SH) source)"; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
 		printf "  ▶ [dry-run] $(GIT) -C %s fetch $(GIT_REMOTE) $(BASE_BRANCH)\n" "$$source"; \
 	else \
@@ -56,7 +56,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
-	source="$$($(CHEZMOI) source-path)"; \
+	source="$$($(DAILY_SH) source)"; \
 	files="$$($(CHEZMOI) --color=false status -S "$$source" | $(DAILY_SH) lose-paths)"; \
 	if [ -n "$$files" ]; then \
 		printf '%s\n' "$$files"; \
@@ -73,7 +73,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
-	source="$$($(CHEZMOI) source-path)"; \
+	source="$$($(DAILY_SH) source)"; \
 	source_real="$$(realpath "$$source")"; \
 	invoker_real="$$(realpath "$(CURDIR)")"; \
 	if [ "$(DRY_RUN)" = "1" ]; then \

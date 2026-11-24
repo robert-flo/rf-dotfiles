@@ -3,10 +3,12 @@
 set -euo pipefail
 
 usage() {
-  printf 'usage: %s profile|sudo-state|classify|lose-paths|script-paths\n' "$(basename "$0")" >&2
+  printf 'usage: %s profile|sudo-state|source|lose-paths|script-paths\n' "$(basename "$0")" >&2
   exit 2
 }
 
+# Misma cascada que .chezmoiignore.tmpl (bloque «Auto-detect profile»).
+# Vive acá porque morning tiene que decir el perfil sin renderizar la plantilla.
 rf_profile() {
   if [[ -n "${CHEZMOI_PROFILE:-}" ]]; then
     printf '%s\n' "$CHEZMOI_PROFILE"
@@ -60,7 +62,7 @@ rf_paths() {
 case "$1" in
   profile) rf_profile ;;
   sudo-state) rf_sudo_state ;;
-  classify) rf_classify ;;
+  source) "${CHEZMOI:-chezmoi}" source-path ;;
   lose-paths) rf_paths lose ;;
   script-paths) rf_paths script ;;
   *) usage ;;

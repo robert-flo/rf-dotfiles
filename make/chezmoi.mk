@@ -27,7 +27,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)📊 status · chezmoi drift (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) --color=false status -S "$(shell $(CHEZMOI) source-path)"
+	@$(EXEC) $(CHEZMOI) status -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -42,7 +42,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) --color=false --no-pager diff -S "$(shell $(CHEZMOI) source-path)"
+	@$(EXEC) $(CHEZMOI) --no-pager diff -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
