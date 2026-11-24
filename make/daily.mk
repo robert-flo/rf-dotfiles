@@ -33,18 +33,30 @@ ifndef EMBEDDED
 endif
 	@set -euo pipefail; \
 	source="$$($(DAILY_SH) source)"; \
+	fetch_state=no; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
 		printf "  ▶ [dry-run] $(GIT) -C %s fetch $(GIT_REMOTE) $(BASE_BRANCH)\n" "$$source"; \
-	else \
-		$(GIT) -C "$$source" fetch $(GIT_REMOTE) $(BASE_BRANCH); \
+	elif $(GIT) -C "$$source" fetch $(GIT_REMOTE) $(BASE_BRANCH); then \
+		fetch_state=yes; \
 	fi; \
 	commit="$$($(GIT) -C "$$source" rev-parse HEAD)"; \
-	behind="$$($(GIT) -C "$$source" rev-list --count HEAD..$(GIT_REMOTE)/$(BASE_BRANCH))"; \
+	if $(GIT) -C "$$source" rev-parse --verify $(GIT_REMOTE)/$(BASE_BRANCH) >/dev/null 2>&1; then \
+		origin="$$($(GIT) -C "$$source" rev-parse $(GIT_REMOTE)/$(BASE_BRANCH))"; \
+		behind="$$($(GIT) -C "$$source" rev-list --count HEAD..$(GIT_REMOTE)/$(BASE_BRANCH))"; \
+		ahead="$$($(GIT) -C "$$source" rev-list --count $(GIT_REMOTE)/$(BASE_BRANCH)..HEAD)"; \
+		if [ "$$commit" = "$$origin" ]; then same=yes; else same=no; fi; \
+	else \
+		origin=unknown; behind=unknown; ahead=unknown; same=unknown; \
+	fi; \
 	profile="$$($(DAILY_SH) profile)"; \
 	sudo_state="$$($(DAILY_SH) sudo-state)"; \
 	status_text="$$($(CHEZMOI) --color=false status -S "$$source")"; \
 	printf "commit: %s\n" "$$commit"; \
+	printf "origin: %s\n" "$$origin"; \
+	printf "same: %s\n" "$$same"; \
 	printf "behind: %s\n" "$$behind"; \
+	printf "ahead: %s\n" "$$ahead"; \
+	printf "fetch: %s\n" "$$fetch_state"; \
 	printf "profile: %s\n" "$$profile"; \
 	printf "sudo: %s\n" "$$sudo_state"; \
 	printf "lose:\n"; \

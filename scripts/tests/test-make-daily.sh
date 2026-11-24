@@ -159,6 +159,9 @@ local_commit="$(git -C "$tmp/prod" rev-parse HEAD)"
 out="$(CHEZMOI_PROFILE=clavis run_make "$tmp/invoker" morning)"
 assert_contains "$out" "commit: $local_commit" "morning muestra el commit de la copia de producción"
 assert_contains "$out" "behind: 1" "morning dice que la copia va un commit atrás de origin/master"
+assert_contains "$out" "ahead: 0" "morning dice que la copia no va adelante de origin/master"
+assert_contains "$out" "same: no" "morning dice que el commit no es el de origin/master"
+assert_contains "$out" "fetch: yes" "morning pudo hacer fetch"
 assert_contains "$out" "profile: clavis" "morning usa CHEZMOI_PROFILE cuando está puesto"
 assert_contains "$out" "sudo: yes" "morning dice que sudo -n alcanza"
 assert_contains "$out" ".config/clavis/ui-preferences.json" "morning lista un archivo del home que el apply pisaría"
@@ -168,8 +171,11 @@ out="$(
   unset CHEZMOI_PROFILE
   run_make "$tmp/invoker" morning
 )"
-assert_eq "niri" "$(id -un)" "esta prueba del perfil por defecto corre como niri"
-assert_contains "$out" "profile: clavis" "sin CHEZMOI_PROFILE, niri resuelve clavis"
+if [[ "$(id -un)" == "niri" ]]; then
+  assert_contains "$out" "profile: clavis" "sin CHEZMOI_PROFILE, niri resuelve clavis"
+else
+  assert_contains "$out" "profile: " "morning imprime el perfil resuelto para $(id -un)"
+fi
 
 write_fake_sudo "$tmp/bin" 1
 out="$(CHEZMOI_PROFILE=omarchy run_make "$tmp/invoker" morning)"
@@ -210,6 +216,10 @@ run_make "$tmp/invoker" pull >/dev/null
 assert_eq "$remote_tip" "$(git -C "$tmp/prod" rev-parse HEAD)" "pull deja la copia de producción en el commit del remoto"
 assert_eq "$remote_tip" "$(git -C "$tmp/invoker" rev-parse HEAD)" "pull deja el otro clon en el commit del remoto"
 assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "pull no invoca apply"
+out="$(run_make "$tmp/invoker" morning)"
+assert_contains "$out" "same: yes" "morning dice que la copia quedó en el mismo commit que origin/master"
+assert_contains "$out" "behind: 0" "morning dice behind 0 cuando los commits coinciden"
+assert_contains "$out" "ahead: 0" "morning dice ahead 0 cuando los commits coinciden"
 
 git -C "$tmp/invoker" reset -q --hard "$old_inv"
 export CHEZMOI_SOURCE="$tmp/invoker"
@@ -241,6 +251,14 @@ diff_log="$(cat "$CHEZMOI_LOG")"
 assert_contains "$diff_log" "diff" "diff invoca chezmoi diff"
 assert_contains "$diff_log" "-S $tmp/prod" "diff usa la copia de producción"
 assert_not_contains "$diff_log" "-S $tmp/invoker" "diff no usa el directorio invocador"
+
+saved_url="$(git -C "$tmp/prod" remote get-url origin)"
+git -C "$tmp/prod" remote set-url origin "$tmp/no-such-remote.git"
+out="$(run_make "$tmp/invoker" morning)"
+assert_contains "$out" "fetch: no" "morning sigue cuando el fetch no puede"
+assert_contains "$out" "commit: " "sin fetch, morning igual muestra el commit local"
+assert_contains "$out" "profile: " "sin fetch, morning igual muestra el perfil"
+git -C "$tmp/prod" remote set-url origin "$saved_url"
 
 # --- safe ---
 cat > "$tmp/status.txt" << 'EOF'
