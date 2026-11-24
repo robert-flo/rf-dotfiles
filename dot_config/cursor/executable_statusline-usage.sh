@@ -27,19 +27,20 @@ if [[ -z $token ]]; then
   if ! command -v secret-tool >/dev/null 2>&1; then
     fail "secret-tool ausente"
   fi
-  st_err=$tmp/secret-tool.err
-  if ! secret-tool lookup service cursor-credentials account cursor-user >"$tmp/secret" 2>"$st_err"; then
-    msg=$(tr '\n' ' ' <"$st_err" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' | cut -c1-160)
-    if [[ -z $msg || $msg == *[Nn]ot\ found* || $msg == *[Nn]o\ such\ secret* ]]; then
+  secret_err=$tmp/secret-tool.err
+  if ! secret-tool lookup service cursor-credentials account cursor-user >"$tmp/secret" 2>"$secret_err"; then
+    msg=$(tr '\n' ' ' <"$secret_err" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' | cut -c1-160)
+    if [[ $msg == *[Ii]tem\ was\ not\ found* || $msg == *[Nn]o\ such\ secret* ]]; then
       fail "sin token"
     fi
+    [[ -n $msg ]] || msg="secret-tool falló"
     fail "$msg"
   fi
-  if jq -e 'type == "object"' "$tmp/secret" >/dev/null 2>&1; then
-    token=$(jq -r '.accessToken // empty' "$tmp/secret")
-  else
-    token=$(tr -d '\n' <"$tmp/secret")
+  if ! jq -e 'type == "object" and (.accessToken | type == "string" and length > 0)' "$tmp/secret" >/dev/null 2>&1; then
+    rm -f "$tmp/secret"
+    fail "secreto sin accessToken"
   fi
+  token=$(jq -r '.accessToken' "$tmp/secret")
   rm -f "$tmp/secret"
 fi
 [[ -n $token ]] || fail "sin token"
