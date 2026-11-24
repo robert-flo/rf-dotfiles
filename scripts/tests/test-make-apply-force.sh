@@ -64,8 +64,21 @@ finish() {
 
 tmp="$(mktemp -d)"
 KEEPALIVE_PATTERN="$REPO_ROOT/scripts/rf-make-daily.sh sudo-keepalive"
+# Los keepalive se identifican por el pid del script de apply que los lanzó (el chezmoi
+# falso los anota), así un make apply real corriendo en paralelo no cuenta ni se mata.
+keepalive_count() {
+  local n=0 pid c
+  while IFS= read -r pid; do
+    c="$(pgrep -fc "$KEEPALIVE_PATTERN $pid" || true)"
+    n=$((n + c))
+  done < "$APPLY_PIDS_FILE"
+  printf '%s\n' "$n"
+}
 cleanup() {
-  pkill -f "$KEEPALIVE_PATTERN" 2>/dev/null || true
+  local pid
+  while IFS= read -r pid; do
+    pkill -f "$KEEPALIVE_PATTERN $pid" 2>/dev/null || true
+  done < "$APPLY_PIDS_FILE" 2>/dev/null
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -79,10 +92,11 @@ set -euo pipefail
 printf 'profile=%s full=%s args=%s\n' "${CHEZMOI_PROFILE-}" "${RF_APPLY_FULL-}" "$*" >> "${CHEZMOI_LOG:?}"
 case " $* " in
   *" source-path "*) printf '%s\n' "${CHEZMOI_SOURCE:?}" ;;
-  *" managed "*) printf '%s\n' "/home/test/01-install-packages.sh" "/home/test/install-spicetify.sh" ;;
+  *" managed "*) printf '%s\n' "${HOME_FIXTURE:?}/01-install-packages.sh" "$HOME_FIXTURE/install-spicetify.sh" ;;
   *" status "*) if [[ -f "${CHEZMOI_STATUS_FILE:-}" ]]; then cat "$CHEZMOI_STATUS_FILE"; fi ;;
   *" apply "*)
     printf '%s\n' "$PPID" > "${APPLY_PPID_FILE:?}"
+    printf '%s\n' "$PPID" >> "${APPLY_PIDS_FILE:?}"
     if [[ -n "${APPLY_SLEEP:-}" ]]; then sleep "$APPLY_SLEEP"; fi
     if [[ "${APPLY_FAIL:-0}" == 1 ]]; then exit 3; fi
     ;;
@@ -106,7 +120,9 @@ EOF
 chmod +x "$tmp/bin/chezmoi" "$tmp/bin/sudo"
 export PATH="$tmp/bin:$PATH"
 export CHEZMOI_LOG="$tmp/chezmoi.log" SUDO_LOG="$tmp/sudo.log" SUDO_OK="$tmp/sudo.ok"
-export APPLY_PPID_FILE="$tmp/apply.ppid"
+export APPLY_PPID_FILE="$tmp/apply.ppid" APPLY_PIDS_FILE="$tmp/apply.pids"
+export HOME_FIXTURE="$tmp/home"
+: > "$APPLY_PIDS_FILE"
 export CHEZMOI_SOURCE="$tmp/prod" CHEZMOI_STATUS_FILE="$tmp/status.txt"
 : > "$CHEZMOI_STATUS_FILE"
 
@@ -120,16 +136,24 @@ run_make() {
   make -C "$REPO_ROOT" "$@"
 }
 
-keepalive_count() {
-  pgrep -fc "$KEEPALIVE_PATTERN" || true
-}
-
 wait_for_apply_start() {
   local _
-  for _ in $(seq 1 50); do
+  for _ in $(seq 1 100); do
     [[ -s "$APPLY_PPID_FILE" ]] && return 0
     sleep 0.1
   done
+  printf '  [FAIL] el apply falso no arrancó en 10 s\n' >&2
+  exit 1
+}
+
+# Espera (máx. $2 s) a que keepalive_count llegue a $1.
+wait_for_keepalives() {
+  local want="$1" max="$2" _
+  for _ in $(seq 1 $((max * 10))); do
+    [[ "$(keepalive_count)" == "$want" ]] && return 0
+    sleep 0.1
+  done
+  return 1
 }
 
 # --- DRY_RUN: muestra el comando con --force, no pide sudo ni toca chezmoi ---
@@ -150,8 +174,8 @@ for target in apply apply-clavis apply-nyxuri apply-omarchy; do
   SUDO_MODE=nopass run_make "$target" > /dev/null
   log="$(cat "$CHEZMOI_LOG")"
   assert_contains "$log" "full=1 args=apply --force -S $REPO_ROOT" "$target llama chezmoi apply --force con RF_APPLY_FULL=1"
-  assert_contains "$log" "args=state delete --bucket=entryState --key=/home/test/01-install-packages.sh" "$target borra el estado de cada run_onchange (re-ejecuta todos)"
-  assert_contains "$log" "args=state delete --bucket=entryState --key=/home/test/install-spicetify.sh" "$target borra el estado de todos los scripts, no solo de uno"
+  assert_contains "$log" "args=state delete --bucket=entryState --key=$HOME_FIXTURE/01-install-packages.sh" "$target borra el estado de cada run_onchange (re-ejecuta todos)"
+  assert_contains "$log" "args=state delete --bucket=entryState --key=$HOME_FIXTURE/install-spicetify.sh" "$target borra el estado de todos los scripts, no solo de uno"
   assert_eq "apply" "$(grep -oE 'args=(state|apply)' <<< "$log" | tail -n1 | cut -d= -f2)" "$target borra el estado antes de aplicar (apply va al final)"
 done
 reset_logs
@@ -165,7 +189,7 @@ assert_not_contains "$(cat "$SUDO_LOG")" "-v" "con sudo sin contraseña no se pi
 
 reset_logs
 set +e
-SUDO_MODE=password script -qec "make -C $REPO_ROOT apply-clavis" /dev/null > "$tmp/tty.out" 2>&1
+SUDO_MODE=password script -qec "make -C \"$REPO_ROOT\" apply-clavis" /dev/null > "$tmp/tty.out" 2>&1
 code=$?
 set -e
 assert_eq "0" "$code" "con terminal y sudo con contraseña, apply-clavis termina bien"
@@ -185,7 +209,6 @@ assert_eq "" "$(cat "$CHEZMOI_LOG")" "falla antes de invocar chezmoi (no toca na
 assert_not_contains "$(cat "$SUDO_LOG")" "-v" "no intenta sudo -v sin terminal"
 
 # --- keepalive: vive durante el apply y no queda después ---
-assert_eq "0" "$(keepalive_count)" "no hay keepalive previo"
 reset_logs
 (APPLY_SLEEP=2 SUDO_MODE=nopass run_make apply-clavis > /dev/null 2>&1) &
 bg=$!
@@ -204,15 +227,21 @@ assert_ne "0" "$code" "si chezmoi apply falla, make falla"
 assert_eq "0" "$(keepalive_count)" "tras un apply fallido no queda keepalive"
 
 reset_logs
-(APPLY_SLEEP=2 SUDO_MODE=nopass run_make apply-clavis > /dev/null 2>&1) &
+(APPLY_SLEEP=6 SUDO_MODE=nopass run_make apply-clavis > /dev/null 2>&1) &
 bg=$!
 wait_for_apply_start
+started=$SECONDS
 kill -TERM "$(cat "$APPLY_PPID_FILE")"
 set +e
 wait "$bg"
 code=$?
 set -e
 assert_ne "0" "$code" "un apply interrumpido (TERM) sale distinto de cero"
+if (( SECONDS - started < 5 )); then
+  PASS_COUNT=$((PASS_COUNT + 1)); printf '  [PASS] TERM al script corta el apply en curso, no espera a que termine\n'
+else
+  FAIL_COUNT=$((FAIL_COUNT + 1)); printf '  [FAIL] TERM al script no cortó el apply en curso\n' >&2
+fi
 assert_eq "0" "$(keepalive_count)" "tras un apply interrumpido no queda keepalive"
 
 reset_logs
@@ -221,8 +250,11 @@ bg=$!
 wait_for_apply_start
 kill -KILL "$(cat "$APPLY_PPID_FILE")"
 wait "$bg" 2>/dev/null || true
-sleep 7
-assert_eq "0" "$(keepalive_count)" "si matan el apply con KILL, el keepalive se va solo"
+if wait_for_keepalives 0 12; then
+  PASS_COUNT=$((PASS_COUNT + 1)); printf '  [PASS] si matan el apply con KILL, el keepalive se va solo\n'
+else
+  FAIL_COUNT=$((FAIL_COUNT + 1)); printf '  [FAIL] si matan el apply con KILL, el keepalive sigue vivo\n' >&2
+fi
 
 # --- la ayuda avisa que apply pisa y apunta a lose ---
 help_out="$(run_make help)"

@@ -75,17 +75,20 @@ rf_lose() {
 
 # --- apply completo (make apply / apply-<perfil>) ---------------------------
 
+RF_KEEPALIVE_TICK=5          # segundos entre revisiones de que el apply sigue vivo
+RF_KEEPALIVE_REFRESH_TICKS=6 # cada cuántas revisiones se renueva sudo (30 s)
+
 # Mantiene vivo el permiso de sudo mientras viva el proceso $1. Se lanza como
 # `rf-make-daily.sh sudo-keepalive <pid>` para poder identificarlo con pgrep.
 rf_sudo_keepalive() {
   local parent="$1" tick=0 sleeper=""
   trap '[[ -z "$sleeper" ]] || kill "$sleeper" 2>/dev/null; exit 0' TERM INT HUP
   while kill -0 "$parent" 2>/dev/null; do
-    sleep 5 &
+    sleep "$RF_KEEPALIVE_TICK" &
     sleeper=$!
     wait "$sleeper" || true
     tick=$((tick + 1))
-    if (( tick % 6 == 0 )); then
+    if (( tick % RF_KEEPALIVE_REFRESH_TICKS == 0 )); then
       sudo -n -v 2>/dev/null || exit 0
     fi
   done
@@ -163,15 +166,30 @@ rf_apply() {
   local rc=0
   RF_KEEPALIVE_PID=""
   trap rf_apply_cleanup EXIT
-  trap 'exit 130' INT
-  trap 'exit 143' TERM HUP
   if [[ $EUID -ne 0 ]]; then
     "$0" sudo-keepalive "$$" &
     RF_KEEPALIVE_PID=$!
   fi
 
   rf_reset_script_state "$source_dir" "${prefix[@]}" "$chezmoi"
-  RF_APPLY_FULL=1 "${prefix[@]}" "$chezmoi" apply --force -S "$source_dir" || rc=$?
+  # chezmoi corre en segundo plano para poder reenviarle la señal: bash difiere los
+  # traps mientras espera a un hijo en primer plano, y un kill al script dejaría
+  # el apply (y los scripts de root) corriendo. <&0 conserva stdin; el reenvío es
+  # TERM porque los procesos en segundo plano de un shell no interactivo ignoran INT.
+  local child interrupted=0
+  RF_APPLY_FULL=1 "${prefix[@]}" "$chezmoi" apply --force -S "$source_dir" <&0 &
+  child=$!
+  # shellcheck disable=SC2064 # se expande ahora a propósito: $child ya existe
+  trap "interrupted=130; kill -TERM $child 2>/dev/null || true" INT
+  # shellcheck disable=SC2064
+  trap "interrupted=143; kill -TERM $child 2>/dev/null || true" TERM HUP
+  wait "$child" || rc=$?
+  while kill -0 "$child" 2>/dev/null; do
+    wait "$child" || rc=$?
+  done
+  if (( interrupted != 0 )); then
+    rc=$interrupted
+  fi
   exit "$rc"
 }
 
