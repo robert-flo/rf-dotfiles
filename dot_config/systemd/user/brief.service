@@ -1,0 +1,13 @@
+[Unit]
+Description=robertOS GitHub brief cache (Domina)
+After=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+TimeoutStartSec=15min
+Environment=PATH=%h/.local/bin:%h/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/brief --cache
+
+[Install]
+WantedBy=default.target

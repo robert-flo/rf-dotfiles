@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# scripts/brief-table/main.go hash: {{ include "scripts/brief-table/main.go" | sha256sum }}
+set -euo pipefail
+
+echo "==> [chezmoi] Compilando brief-table hacia ~/.local/bin/brief-table para {{ .chezmoi.username }}..."
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "==> [chezmoi] Aviso: go no disponible; omitiendo compilación de brief-table."
+  exit 0
+fi
+
+SRC_DIR="{{ .chezmoi.sourceDir }}/scripts/brief-table"
+TARGET_DIR="{{ .chezmoi.homeDir }}/.local/bin"
+
+if [[ -d "$SRC_DIR" ]]; then
+  mkdir -p "$TARGET_DIR"
+  (
+    cd "$SRC_DIR"
+    go build -o "$TARGET_DIR/brief-table" .
+  )
+  chmod +x "$TARGET_DIR/brief-table"
+  echo "==> [chezmoi] brief-table compilado e instalado exitosamente en $TARGET_DIR/brief-table."
+else
+  echo "==> [chezmoi] Aviso: directorio fuente $SRC_DIR no encontrado."
+fi
