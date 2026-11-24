@@ -2,7 +2,7 @@
 # ☀️ DAILY - Tablero, pérdida local y pull de la copia que chezmoi lee
 # ════════════════════════════════════════════════════════════════════════════════
 
-CHEZMOI ?= chezmoi
+CHEZMOI_BIN ?= chezmoi
 GIT ?= git
 GIT_REMOTE ?= origin
 BASE_BRANCH ?= master
@@ -50,7 +50,7 @@ endif
 	fi; \
 	profile="$$($(DAILY_SH) profile)"; \
 	sudo_state="$$($(DAILY_SH) sudo-state)"; \
-	status_text="$$($(CHEZMOI) --color=false status -S "$$source")"; \
+	status_text="$$($(CHEZMOI_BIN) --color=false status -S "$$source")"; \
 	printf "commit: %s\n" "$$commit"; \
 	printf "origin: %s\n" "$$origin"; \
 	printf "same: %s\n" "$$same"; \
@@ -114,9 +114,9 @@ endif
 	source="$$($(DAILY_SH) source)"; \
 	profile="$$($(DAILY_SH) profile)"; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
-		printf "  ▶ [dry-run] env CHEZMOI_PROFILE=%s $(CHEZMOI) apply -S %s\n" "$$profile" "$$source"; \
+		printf "  ▶ [dry-run] env CHEZMOI_PROFILE=%s $(CHEZMOI_BIN) apply -S %s\n" "$$profile" "$$source"; \
 	else \
-		env CHEZMOI_PROFILE="$$profile" $(CHEZMOI) apply -S "$$source"; \
+		env CHEZMOI_PROFILE="$$profile" $(CHEZMOI_BIN) apply -S "$$source"; \
 	fi
 
 root: ## Run root install scripts only; do not apply the home tree
@@ -134,9 +134,9 @@ endif
 	source="$$($(DAILY_SH) source)"; \
 	for tmpl in $(ROOT_SCRIPTS); do \
 		if [ "$(DRY_RUN)" = "1" ]; then \
-			printf "  ▶ [dry-run] $(CHEZMOI) execute-template --file %s/%s -S %s | bash\n" "$$source" "$$tmpl" "$$source"; \
+			printf "  ▶ [dry-run] $(CHEZMOI_BIN) execute-template --file %s/%s -S %s | bash\n" "$$source" "$$tmpl" "$$source"; \
 		else \
-			rendered="$$($(CHEZMOI) execute-template --file "$$source/$$tmpl" -S "$$source")"; \
+			rendered="$$($(CHEZMOI_BIN) execute-template --file "$$source/$$tmpl" -S "$$source")"; \
 			printf '%s\n' "$$rendered" | bash; \
 		fi; \
 	done
