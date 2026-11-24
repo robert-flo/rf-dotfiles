@@ -23,9 +23,10 @@ rf_is_source() {
 # La fuente que chezmoi lee. Primero lo que declara `chezmoi source-path` si existe
 # (en niri, ~/.local/share/chezmoi -> la copia central). Con --canonical se devuelve
 # readlink -f de esa ruta: un run_onchange que incluye .chezmoi.sourceDir cambia de
-# hash si -S es el enlace y el apply se hizo por la ruta real, y status lo lista como R.
-# Lo usan solo los targets que listan scripts (status, morning). El resto se queda con
-# el enlace: make apply usa el directorio tal cual se invocó.
+# hash si -S es el enlace y el apply se hizo por la ruta real. status lo lista como R
+# y diff lo muestra como archivo nuevo. Lo usan los targets que le pasan -S a chezmoi
+# para listar, comparar o renderizar (status, morning, diff, safe, root).
+# make apply no pasa por acá: usa el directorio tal cual se invocó.
 # En un usuario sin ese enlace (niri-classic) ese directorio no existe y todo fallaba:
 # se cae al repo desde el que se corre make y, después, a la copia central. Esos
 # fallbacks no se canonicalizan. Si nada sirve, error claro.

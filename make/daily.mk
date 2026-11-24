@@ -132,7 +132,7 @@ ifndef EMBEDDED
 endif
 	@$(DAILY_SH) lose
 	@set -euo pipefail; \
-	source="$$($(DAILY_SH) source)"; \
+	source="$$($(DAILY_SH) source --canonical)"; \
 	profile="$$($(DAILY_SH) profile)"; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
 		printf "  ▶ [dry-run] env CHEZMOI_PROFILE=%s $(CHEZMOI_BIN) apply -S %s\n" "$$profile" "$$source"; \
@@ -152,7 +152,7 @@ endif
 		printf 'root: no instalada (sin sudo -n)\n'; \
 		exit 1; \
 	fi; \
-	source="$$($(DAILY_SH) source)"; \
+	source="$$($(DAILY_SH) source --canonical)"; \
 	for tmpl in $(ROOT_SCRIPTS); do \
 		if [ "$(DRY_RUN)" = "1" ]; then \
 			printf "  ▶ [dry-run] $(CHEZMOI_BIN) execute-template --file %s/%s -S %s | bash\n" "$$source" "$$tmpl" "$$source"; \
