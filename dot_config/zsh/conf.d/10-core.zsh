@@ -19,7 +19,8 @@ _load_compinit() {
   setopt EXTENDED_GLOB
 
   local zcompdump="${ZDOTDIR}/.zcompdump"
-  if [[ ! -f "$zcompdump" || -n ${zcompdump}(#qN.mh+24) ]]; then
+  local -a stale_dump=( "${zcompdump}"(#qN.mh+24) )
+  if [[ ! -f "$zcompdump" || ${#stale_dump} -gt 0 ]]; then
     compinit -u -d "$zcompdump"
   else
     compinit -u -C -d "$zcompdump"

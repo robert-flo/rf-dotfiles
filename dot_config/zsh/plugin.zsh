@@ -11,17 +11,15 @@ fi
 
 if [[ -r "${ZINIT_HOME}/zinit.zsh" ]]; then
   source "${ZINIT_HOME}/zinit.zsh"
-else
-  return 1
-fi
 
-# Plugins
-zinit load zdharma-continuum/history-search-multi-word
-zinit light zsh-users/zsh-autosuggestions
-zinit light zdharma-continuum/fast-syntax-highlighting
-zinit light zsh-users/zsh-completions
-zinit light zsh-users/zsh-history-substring-search
-zinit snippet OMZP::git
-zinit light hlissner/zsh-autopair
-zinit light Aloxaf/fzf-tab
-zinit light djui/alias-tips
+  # Plugins
+  zinit load zdharma-continuum/history-search-multi-word
+  zinit light zsh-users/zsh-autosuggestions
+  zinit light zdharma-continuum/fast-syntax-highlighting
+  zinit light zsh-users/zsh-completions
+  zinit light zsh-users/zsh-history-substring-search
+  zinit snippet OMZP::git
+  zinit light hlissner/zsh-autopair
+  zinit light Aloxaf/fzf-tab
+  zinit light djui/alias-tips
+fi

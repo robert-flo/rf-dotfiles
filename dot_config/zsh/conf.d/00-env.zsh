@@ -2,14 +2,13 @@
 # Base environment and XDG Base Directory Specification
 
 add_to_path() {
-  if [[ -d "$1" && ":$PATH:" != *":$1:"* ]]; then
-    export PATH="$1:$PATH"
-  fi
-}
-
-append_to_path() {
-  if [[ -d "$1" && ":$PATH:" != *":$1:"* ]]; then
-    export PATH="$PATH:$1"
+  local dir="$1"
+  local mode="${2:-prepend}"
+  [[ -d "$dir" && ":$PATH:" != *":$dir:"* ]] || return 0
+  if [[ "$mode" == "append" ]]; then
+    export PATH="$PATH:$dir"
+  else
+    export PATH="$dir:$PATH"
   fi
 }
 
@@ -48,6 +47,6 @@ export PYTHON_HISTORY="${PYTHON_HISTORY:-$XDG_STATE_HOME/python_history}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 export ANDROID_USER_HOME="${ANDROID_USER_HOME:-$HOME/.android}"
 export ANDROID_PROJECTS_DIR="${ANDROID_PROJECTS_DIR:-/z/android-projects}"
-append_to_path "$ANDROID_HOME/emulator"
-append_to_path "$ANDROID_HOME/platform-tools"
-append_to_path "$ANDROID_HOME/cmdline-tools/latest/bin"
+add_to_path "$ANDROID_HOME/emulator" append
+add_to_path "$ANDROID_HOME/platform-tools" append
+add_to_path "$ANDROID_HOME/cmdline-tools/latest/bin" append
