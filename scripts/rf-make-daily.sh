@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  printf 'usage: %s profile|sudo-state|source|lose|lose-paths|script-paths\n' "$(basename "$0")" >&2
+  printf 'usage: %s profile|sudo-state|source|lose|lose-paths|script-paths|apply|sudo-keepalive\n' "$(basename "$0")" >&2
   exit 2
 }
 
@@ -73,6 +73,108 @@ rf_lose() {
   fi
 }
 
+# --- apply completo (make apply / apply-<perfil>) ---------------------------
+
+# Mantiene vivo el permiso de sudo mientras viva el proceso $1. Se lanza como
+# `rf-make-daily.sh sudo-keepalive <pid>` para poder identificarlo con pgrep.
+rf_sudo_keepalive() {
+  local parent="$1" tick=0 sleeper=""
+  trap '[[ -z "$sleeper" ]] || kill "$sleeper" 2>/dev/null; exit 0' TERM INT HUP
+  while kill -0 "$parent" 2>/dev/null; do
+    sleep 5 &
+    sleeper=$!
+    wait "$sleeper" || true
+    tick=$((tick + 1))
+    if (( tick % 6 == 0 )); then
+      sudo -n -v 2>/dev/null || exit 0
+    fi
+  done
+}
+
+# Pide sudo una sola vez, antes de tocar nada. Falla con un mensaje claro si no
+# hay contraseña posible (sin terminal y sin sudo sin contraseña).
+rf_sudo_acquire() {
+  if [[ $EUID -eq 0 ]] || sudo -n true 2>/dev/null; then
+    return 0
+  fi
+  if ! ( exec </dev/tty ) 2>/dev/null; then
+    cat >&2 << 'EOF_MSG'
+✗ apply necesita sudo y no hay forma de pedirlo: no hay terminal y sudo exige contraseña.
+  No se tocó nada. Qué hacer:
+    • corré make apply desde una terminal interactiva (pedirá la contraseña una vez), o
+    • configurá sudo sin contraseña para este usuario, o
+    • usá make safe (aplica solo el home y no corre tareas de root).
+EOF_MSG
+    return 1
+  fi
+  if ! sudo -v; then
+    printf '✗ apply necesita sudo y no se pudo obtener. No se tocó nada.\n' >&2
+    return 1
+  fi
+}
+
+# Hace que chezmoi vea como "nunca ejecutados" todos los run_onchange_* del perfil.
+# En chezmoi 2.73 el estado de un run_onchange vive en el bucket entryState, con la
+# ruta absoluta del script como clave (scriptState es solo de run_once_*).
+# Verificado con chezmoi real: borrar scriptState NO re-ejecuta nada.
+rf_reset_script_state() {
+  local source_dir="$1"
+  shift
+  local scripts script
+  scripts="$("$@" managed -S "$source_dir" --include=scripts --path-style=absolute)"
+  while IFS= read -r script; do
+    [[ -n "$script" ]] || continue
+    "$@" state delete --bucket=entryState --key="$script"
+  done <<< "$scripts"
+}
+
+# Para el trap de rf_apply: global a propósito, el trap de EXIT corre fuera de la función.
+RF_KEEPALIVE_PID=""
+rf_apply_cleanup() {
+  if [[ -n "$RF_KEEPALIVE_PID" ]]; then
+    kill "$RF_KEEPALIVE_PID" 2>/dev/null || true
+    wait "$RF_KEEPALIVE_PID" 2>/dev/null || true
+    RF_KEEPALIVE_PID=""
+  fi
+}
+
+# apply <source> [perfil]: apply completo, el repo gana y se aplica el 100 %:
+#   1. sudo una sola vez (sudo -v) con keepalive que no sobrevive al apply;
+#   2. borra el estado de los scripts de chezmoi, así TODOS los run_onchange_*
+#      se re-ejecutan (un paquete borrado a mano se reinstala, etc.);
+#   3. chezmoi apply --force con RF_APPLY_FULL=1: los scripts que se saltarían
+#      sin sudo fallan en vez de omitir.
+# DRY_RUN=1 solo imprime: no pide sudo ni toca el estado de chezmoi.
+rf_apply() {
+  local source_dir="$1" profile="${2:-}" chezmoi="${CHEZMOI_BIN:-chezmoi}"
+  local -a prefix=()
+  if [[ -n "$profile" ]]; then
+    prefix=(env "CHEZMOI_PROFILE=$profile")
+  fi
+  if [[ "${DRY_RUN:-0}" == 1 ]]; then
+    printf '  ▶ [dry-run] sudo -v (una sola vez, con keepalive; no se ejecuta)\n'
+    printf '  ▶ [dry-run] %s state delete --bucket=entryState --key=<cada run_onchange_*> (re-ejecuta todos)\n' "$chezmoi"
+    printf '  ▶ [dry-run] RF_APPLY_FULL=1 %s%s apply --force -S %s\n' "${prefix[*]:+${prefix[*]} }" "$chezmoi" "$source_dir"
+    return 0
+  fi
+
+  rf_sudo_acquire || exit 1
+
+  local rc=0
+  RF_KEEPALIVE_PID=""
+  trap rf_apply_cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM HUP
+  if [[ $EUID -ne 0 ]]; then
+    "$0" sudo-keepalive "$$" &
+    RF_KEEPALIVE_PID=$!
+  fi
+
+  rf_reset_script_state "$source_dir" "${prefix[@]}" "$chezmoi"
+  RF_APPLY_FULL=1 "${prefix[@]}" "$chezmoi" apply --force -S "$source_dir" || rc=$?
+  exit "$rc"
+}
+
 [[ $# -ge 1 ]] || usage
 case "$1" in
   profile) rf_profile ;;
@@ -81,5 +183,7 @@ case "$1" in
   lose) rf_lose ;;
   lose-paths) rf_paths lose ;;
   script-paths) rf_paths script ;;
+  apply) [[ $# -ge 2 ]] || usage; rf_apply "$2" "${3:-}" ;;
+  sudo-keepalive) [[ $# -eq 2 ]] || usage; rf_sudo_keepalive "$2" ;;
   *) usage ;;
 esac
