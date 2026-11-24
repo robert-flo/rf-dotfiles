@@ -32,7 +32,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
-	source="$$($(DAILY_SH) source)"; \
+	source="$$($(DAILY_SH) source --canonical)"; \
 	fetch_state=no; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
 		printf "  ▶ [dry-run] $(GIT) -C %s fetch $(GIT_REMOTE) $(BASE_BRANCH)\n" "$$source"; \

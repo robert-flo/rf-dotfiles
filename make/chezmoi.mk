@@ -30,7 +30,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)📊 status · chezmoi drift (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@set -euo pipefail; source="$$($(DAILY_SH) source)"; $(EXEC) $(CHEZMOI_BIN) status -S "$$source"
+	@set -euo pipefail; source="$$($(DAILY_SH) source --canonical)"; $(EXEC) $(CHEZMOI_BIN) status -S "$$source"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
