@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""chrome-h264 — Chrome estable con H.264 forzado en YouTube (opt-in).
+
+La HD 530 decodifica H.264 por hardware (VA-API) pero no VP9 ni AV1. YouTube
+prefiere AV1/VP9, y Chrome los decodifica por software (≈100-130 % de un núcleo
+a 1080p60). Este lanzador abre Chrome estable en un perfil propio y, antes de que
+cargue cada página, inyecta ~/.local/share/chrome-h264/h264only.js, que oculta
+VP9/AV1 y deja a YouTube con H.264 (≈40-50 %).
+
+Por qué así: Chrome de marca 150+ ignora --load-extension, y la depuración remota
+está bloqueada sobre el perfil por defecto. Se usa --remote-debugging-pipe (sin
+puerto TCP) con un user-data-dir dedicado.
+
+Activar:    chrome-h264 [URL...]
+Desactivar: abrir Chrome como siempre (`google-chrome-stable`); este perfil no se toca.
+Limpiar:    chrome-h264 --clean   (borra el perfil dedicado; el perfil normal no se toca)
+
+Solo la biblioteca estándar de Python. Los flags salen del wrapper
+google-chrome-stable (~/.config/chrome-flags.conf), igual que en Chrome normal.
+"""
+import argparse
+import fcntl
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+STATE = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state"))
+PROFILE = Path(os.environ.get("CHROME_H264_PROFILE", STATE / "chrome-h264"))
+SCRIPT = Path(os.environ.get("CHROME_H264_SCRIPT", HOME / ".local/share/chrome-h264/h264only.js"))
+CHROME = os.environ.get("CHROME_H264_BIN", "google-chrome-stable")
+INJECTABLE = {"page", "iframe"}
+
+
+def log(msg):
+    print(f"chrome-h264: {msg}", file=sys.stderr)
+
+
+def running_instance():
+    """PID del Chrome que ya usa el perfil, o None (SingletonLock apunta a host-pid)."""
+    lock = PROFILE / "SingletonLock"
+    try:
+        pid = int(os.readlink(lock).rsplit("-", 1)[1])
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+class Pipe:
+    """Protocolo --remote-debugging-pipe: JSON separado por NUL, fd 3 (entra) y 4 (sale)."""
+
+    def __init__(self, rfd, wfd):
+        self.rfd, self.wfd, self.buf, self.next_id = rfd, wfd, b"", 0
+
+    def send(self, method, params=None, session=None):
+        self.next_id += 1
+        msg = {"id": self.next_id, "method": method, "params": params or {}}
+        if session:
+            msg["sessionId"] = session
+        os.write(self.wfd, json.dumps(msg).encode() + b"\0")
+
+    def messages(self):
+        while True:
+            chunk = os.read(self.rfd, 65536)
+            if not chunk:
+                return
+            self.buf += chunk
+            while b"\0" in self.buf:
+                raw, self.buf = self.buf.split(b"\0", 1)
+                yield json.loads(raw)
+
+
+AUTO_ATTACH = {"autoAttach": True, "waitForDebuggerOnStart": True, "flatten": True}
+
+
+def serve(pipe, source, verbose):
+    """Cada target nuevo arranca pausado: se inyecta el script y recién ahí se reanuda."""
+    pipe.send("Target.setAutoAttach", AUTO_ATTACH)
+    for msg in pipe.messages():
+        if msg.get("method") != "Target.attachedToTarget":
+            continue
+        p = msg["params"]
+        session, kind = p["sessionId"], p["targetInfo"]["type"]
+        if kind in INJECTABLE:
+            pipe.send("Page.enable", session=session)
+            pipe.send("Page.addScriptToEvaluateOnNewDocument", {"source": source}, session)
+            pipe.send("Target.setAutoAttach", AUTO_ATTACH, session)
+            if verbose:
+                log(f"inyectado en {kind} {p['targetInfo'].get('url', '')[:80]}")
+        if p.get("waitingForDebugger"):
+            pipe.send("Runtime.runIfWaitingForDebugger", session=session)
+
+
+def fd_above(fd, floor=10):
+    new = fcntl.fcntl(fd, fcntl.F_DUPFD_CLOEXEC, floor)
+    os.close(fd)
+    return new
+
+
+def launch(args, extra):
+    if not SCRIPT.is_file():
+        log(f"falta {SCRIPT}; corré `chezmoi apply`")
+        return 1
+    pid = running_instance()
+    if pid:
+        log(f"ya hay un chrome-h264 abierto (pid {pid}); cerralo o usá esa ventana")
+        return 1
+    PROFILE.mkdir(parents=True, exist_ok=True)
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    to_chrome_r, to_chrome_w = (fd_above(f) for f in os.pipe())
+    from_chrome_r, from_chrome_w = (fd_above(f) for f in os.pipe())
+
+    def into_fds():
+        os.dup2(to_chrome_r, 3)
+        os.dup2(from_chrome_w, 4)
+
+    cmd = [
+        CHROME,
+        f"--user-data-dir={PROFILE}",
+        "--remote-debugging-pipe",
+        "--no-first-run",
+        *(["--autoplay-policy=no-user-gesture-required"] if args.autoplay else []),
+        *extra,
+    ]
+    proc = subprocess.Popen(cmd, preexec_fn=into_fds, close_fds=False)
+    os.close(to_chrome_r)
+    os.close(from_chrome_w)
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda s, _f: proc.send_signal(s))
+    try:
+        serve(Pipe(from_chrome_r, to_chrome_w), source, args.verbose)
+    except (OSError, ValueError) as exc:
+        log(f"se perdió el canal con Chrome: {exc}")
+    return proc.wait()
+
+
+def clean():
+    if running_instance():
+        log("chrome-h264 está abierto; cerralo antes de limpiar")
+        return 1
+    if PROFILE.exists():
+        shutil.rmtree(PROFILE)
+        log(f"borrado {PROFILE}")
+    else:
+        log("no había nada que limpiar")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Chrome estable con H.264 forzado en YouTube (opt-in). Argumentos extra (URLs, flags) se pasan a Chrome.")
+    ap.add_argument("--clean", action="store_true", help="borra el perfil dedicado y sale")
+    ap.add_argument("--autoplay", action="store_true", help="permite reproducción automática (pruebas)")
+    ap.add_argument("-v", "--verbose", action="store_true", help="muestra dónde se inyecta el script")
+    args, extra = ap.parse_known_args()
+    return clean() if args.clean else launch(args, extra)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

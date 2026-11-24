@@ -2,7 +2,7 @@
 """Sondas de browser-flags-bench: miden en el navegador ya lanzado (solo stdlib).
 
   gpu     --port P                       estado de chrome://gpu (decode, raster, GL) y perfiles VA-API
-  video   --port P --profile D --url U --warmup S --seconds S --windows N
+  video   --port P --profile D --url U --warmup S --seconds S --windows N [--youtube] [--inject FILE.js]
                                          reproduce U y mide decoder, fotogramas y CPU (mediana de N ventanas)
   typing  --port P --url U               escribe á é ñ (wtype directo y Unicode de fcitx5) y cuenta los
                                          eventos de composición (>0 = Chrome usa text-input por Wayland)
@@ -145,18 +145,54 @@ def cmd_gpu(a):
     return 0
 
 
+def js(ws, expr):
+    return ws.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True}).get("result", {}).get("value")
+
+
+def prepare_youtube(ws, props):
+    """Silencia, pide 1080p, espera a que terminen los anuncios y devuelve a qué hora quedó listo."""
+    end = time.time() + 25
+    while time.time() < end:
+        drain(ws, 0.5, props)
+        if js(ws, "typeof movie_player !== 'undefined' && typeof movie_player.getStatsForNerds === 'function'"):
+            break
+    js(ws, "movie_player.mute(); movie_player.setPlaybackQualityRange('hd1080'); movie_player.playVideo()")
+    end = time.time() + 60
+    ready = False
+    while time.time() < end:
+        drain(ws, 0.5, props)
+        if js(ws, "document.querySelector('.html5-video-player.ad-showing')"):
+            js(ws, "(document.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button-modern')||{click(){}}).click()")
+            continue
+        if js(ws, "(movie_player.getStatsForNerds().resolution||'').startsWith('1920x1080')"):
+            ready = True
+            break
+        js(ws, "movie_player.setPlaybackQualityRange('hd1080')")
+    drain(ws, 3, props)
+    return ready
+
+
 def cmd_video(a):
     page = find_tab(a.port)
     ws = cdp.WS(page["webSocketDebuggerUrl"])
     ws.call("Page.enable")
     ws.call("Media.enable")
     ws.call("Page.bringToFront")
+    if a.inject:
+        with open(a.inject, encoding="utf-8") as fh:
+            ws.call("Page.addScriptToEvaluateOnNewDocument", {"source": fh.read()})
     ws.call("Page.navigate", {"url": a.url})
     props = {}
     root = root_pid(a.profile)
     gpu_before = gpu_pids(a.port)
     drain(ws, a.warmup, props)
+    yt_ready = prepare_youtube(ws, props) if a.youtube else None
 
+    quality_js = (
+        "(()=>{const v=document.querySelector('video');const q=v.getVideoPlaybackQuality();"
+        "return {t:v.currentTime,paused:v.paused,w:v.videoWidth,h:v.videoHeight,total:q.totalVideoFrames,dropped:q.droppedVideoFrames}})()"
+    )
+    q0 = js(ws, quality_js)
     samples, sys_samples = [], []
     last = tree_ticks(root)
     wall = 0.0
@@ -177,14 +213,8 @@ def cmd_video(a):
         sys_samples.append(round(100.0 * (busy1 - busy0) / max(all1 - all0, 1), 1))
     native = wayland_native(root)
 
-    q = ws.call(
-        "Runtime.evaluate",
-        {
-            "expression": "(()=>{const v=document.getElementById('v');const q=v.getVideoPlaybackQuality();"
-            "return {t:v.currentTime,paused:v.paused,w:v.videoWidth,h:v.videoHeight,total:q.totalVideoFrames,dropped:q.droppedVideoFrames}})()",
-            "returnByValue": True,
-        },
-    )["result"]["value"]
+    q = js(ws, quality_js)
+    nerds = js(ws, "typeof movie_player!=='undefined' ? movie_player.getStatsForNerds() : null") if a.youtube else None
     shot = ws.call("Page.captureScreenshot", {"format": "png"})["data"]
     ws.close()
     gpu_after = gpu_pids(a.port)
@@ -197,6 +227,8 @@ def cmd_video(a):
         json.dumps(
             {
                 "decoder": props.get("kVideoDecoderName", "?"),
+                "youtube_codecs": (nerds or {}).get("codecs"),
+                "youtube_resolution": (nerds or {}).get("resolution"),
                 "platform_decoder": props.get("kIsPlatformVideoDecoder", "?"),
                 "codec": track.get("codec", "?"),
                 "profile": track.get("profile", "?"),
@@ -207,6 +239,9 @@ def cmd_video(a):
                 "wayland_native": native,
                 "frames_total": q["total"],
                 "frames_dropped": q["dropped"],
+                "youtube_ready": yt_ready,
+                "window_frames": q["total"] - q0["total"],
+                "window_dropped": q["dropped"] - q0["dropped"],
                 "playing": (not q["paused"]) and q["t"] > 1.0,
                 "screenshot_bytes": len(shot) * 3 // 4,
                 "gpu_pid_stable": gpu_before == gpu_after and bool(gpu_after),
@@ -290,6 +325,8 @@ def main():
             s.add_argument("--warmup", type=float, default=4)
             s.add_argument("--seconds", type=float, default=8)
             s.add_argument("--windows", type=int, default=3)
+            s.add_argument("--youtube", action="store_true", help="la URL es de YouTube: silencia y pide 1080p")
+            s.add_argument("--inject", help="archivo JS que se inyecta antes de cada documento nuevo de la pestaña")
         if name == "typing":
             s.add_argument("--url", required=True)
     a = p.parse_args()

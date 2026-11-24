@@ -41,6 +41,8 @@ ${C_BOLD}Opciones:${C_RST}
   ${C_CYAN}-F, --flag FLAG${C_RST}        Flag extra (repetible), se agrega después del archivo
   ${C_CYAN}-l, --label NOMBRE${C_RST}     Etiqueta de la configuración en el reporte
   ${C_CYAN}-c, --codecs LISTA${C_RST}     h264,vp9 (default: ambos)
+  ${C_CYAN}-u, --youtube URL${C_RST}      Mide además un video de YouTube a 1080p (usa la red; reporta codec real y CPU)
+  ${C_CYAN}-i, --inject ARCH.js${C_RST}   Inyecta ese JS antes de cada documento del video de YouTube (p. ej. h264only.js)
   ${C_CYAN}-s, --seconds N${C_RST}        Segundos de cada ventana de medición de CPU (default: 8)
   ${C_CYAN}-n, --windows N${C_RST}        Ventanas consecutivas por códec; se reporta la mediana (default: 3)
   ${C_CYAN}-w, --warmup N${C_RST}         Calentamiento antes de medir (default: 4)
@@ -66,6 +68,8 @@ FLAGS_FILE=""
 EXTRA_FLAGS=()
 LABEL=""
 CODECS="h264,vp9"
+YOUTUBE_URL=""
+INJECT_JS=""
 SECONDS_MEASURE=8
 WINDOWS=3
 WARMUP=4
@@ -85,6 +89,8 @@ while [[ $# -gt 0 ]]; do
     -F|--flag) [[ $# -ge 2 ]] || die "$1 requiere un valor"; EXTRA_FLAGS+=("$2"); shift 2 ;;
     -l|--label) [[ $# -ge 2 ]] || die "$1 requiere un valor"; LABEL="$2"; shift 2 ;;
     -c|--codecs) [[ $# -ge 2 ]] || die "$1 requiere un valor"; CODECS="$2"; shift 2 ;;
+    -u|--youtube) [[ $# -ge 2 ]] || die "$1 requiere un valor"; YOUTUBE_URL="$2"; shift 2 ;;
+    -i|--inject) [[ $# -ge 2 ]] || die "$1 requiere un valor"; INJECT_JS="$2"; shift 2 ;;
     -s|--seconds) [[ $# -ge 2 ]] || die "$1 requiere un valor"; SECONDS_MEASURE="$2"; shift 2 ;;
     -n|--windows) [[ $# -ge 2 ]] || die "$1 requiere un valor"; WINDOWS="$2"; shift 2 ;;
     -w|--warmup) [[ $# -ge 2 ]] || die "$1 requiere un valor"; WARMUP="$2"; shift 2 ;;
@@ -101,6 +107,7 @@ done
   || die "--seconds, --windows, --warmup y --startup-timeout deben ser enteros (windows >= 1)"
 [[ -x "$BROWSER" ]] || die "no existe o no es ejecutable el binario: $BROWSER"
 [[ -z "$FLAGS_FILE" || -f "$FLAGS_FILE" ]] || die "no existe el archivo de flags: $FLAGS_FILE"
+[[ -z "$INJECT_JS" || -f "$INJECT_JS" ]] || die "no existe el archivo a inyectar: $INJECT_JS"
 [[ -n "$LABEL" ]] || LABEL="$(basename "$BROWSER")${FLAGS_FILE:+:$(basename "$FLAGS_FILE")}"
 
 # --- Flags candidatos --------------------------------------------------------
@@ -205,7 +212,7 @@ launch_browser() {
   PORT="$(free_port)"
   setsid "$BROWSER" \
     --user-data-dir="$PROFILE" --remote-debugging-port="$PORT" --remote-debugging-address=127.0.0.1 \
-    --no-first-run --no-default-browser-check --password-store=basic \
+    --no-first-run --no-default-browser-check --password-store=basic --autoplay-policy=no-user-gesture-required \
     "${CANDIDATE[@]}" "$url" > "$PROFILE/browser.log" 2>&1 &
   LEADER=$!
   for _ in $(seq 1 $((STARTUP_TIMEOUT * 4))); do
@@ -254,16 +261,24 @@ ensure_version() {
 }
 
 run_video() {
-  local c result
-  for c in ${CODECS//,/ }; do
+  local c result url extra
+  local -a clips=()
+  read -ra clips <<< "${CODECS//,/ }"
+  [[ -z "$YOUTUBE_URL" ]] || clips+=(youtube)
+  for c in "${clips[@]}"; do
+    url="file://$WORK/$c.html"; extra=()
+    if [[ "$c" == "youtube" ]]; then
+      url="$YOUTUBE_URL"; extra=(--youtube)
+      [[ -z "$INJECT_JS" ]] || extra+=(--inject "$INJECT_JS")
+    fi
     log "${C_CYAN}video $c${C_RST}: ${WINDOWS} ventanas de ${SECONDS_MEASURE}s tras ${WARMUP}s de calentamiento..."
     launch_browser about:blank
     ensure_version
     if [[ "$GPU_JSON" == "{}" ]]; then
       GPU_JSON="$(python3 "$PROBE" gpu --port "$PORT")"
     fi
-    result="$(python3 "$PROBE" video --port "$PORT" --profile "$PROFILE" --url "file://$WORK/$c.html" \
-      --warmup "$WARMUP" --seconds "$SECONDS_MEASURE" --windows "$WINDOWS")" || { OVERALL_OK=0; result='{"error":"probe falló"}'; }
+    result="$(python3 "$PROBE" video --port "$PORT" --profile "$PROFILE" --url "$url" \
+      --warmup "$WARMUP" --seconds "$SECONDS_MEASURE" --windows "$WINDOWS" "${extra[@]}")" || { OVERALL_OK=0; result='{"error":"probe falló"}'; }
     STABLE_JSON="$(python3 "$PROBE" stable --port "$PORT" 2> /dev/null || echo '{"responsive":false,"gpu_process":false}')"
     stop_browser
     VIDEO_JSON="$(jq -c --arg c "$c" --argjson r "$result" --argjson s "$STABLE_JSON" '. + {($c): ($r + {responsive_after: $s.responsive})}' <<< "$VIDEO_JSON")"
@@ -295,9 +310,12 @@ human_report() {
   printf 'flags   : %s\n' "${CANDIDATE[*]}"
   jq -r '.gpu | "gpu     : decode=\(.video_decode // "?") | raster=\(.rasterization // "?") | compositing=\(.compositing // "?") | canvas=\(.canvas // "?")\ngl      : \(.gl_renderer // "?")"' <<< "$REPORT"
   local c
-  for c in ${CODECS//,/ }; do
+  local -a clips=()
+  read -ra clips <<< "${CODECS//,/ }"
+  [[ -z "$YOUTUBE_URL" ]] || clips+=(youtube)
+  for c in "${clips[@]}"; do
     [[ "$DO_VIDEO" -eq 1 ]] || break
-    jq -r --arg c "$c" '.video[$c] | "\($c)    : decoder=\(.decoder // "?") platform_hw=\(.platform_decoder // "?") \(.codec // "?")/\(.resolution // "?") cpu_browser=\(.cpu_browser_pct_core // "?")% (mediana, de 1 núcleo; muestras \(.cpu_browser_samples // [])) cpu_sistema=\(.cpu_system_pct // "?")% frames=\(.frames_total // "?") perdidos=\(.frames_dropped // "?") wayland_nativo=\(.wayland_native // "?") reproduciendo=\(.playing // "?") gpu_estable=\(.gpu_pid_stable // "?") captura=\(.screenshot_bytes // 0)B"' <<< "$REPORT"
+    jq -r --arg c "$c" '.video[$c] | "\($c)    : decoder=\(.decoder // "?") yt=\(.youtube_codecs // "-") \(.youtube_resolution // "") listo1080=\(.youtube_ready // "-") platform_hw=\(.platform_decoder // "?") \(.codec // "?")/\(.resolution // "?") cpu_browser=\(.cpu_browser_pct_core // "?")% (mediana, de 1 núcleo; muestras \(.cpu_browser_samples // [])) cpu_sistema=\(.cpu_system_pct // "?")% frames=\(.frames_total // "?") perdidos=\(.frames_dropped // "?") (en la medición: \(.window_dropped // "?")/\(.window_frames // "?")) wayland_nativo=\(.wayland_native // "?") reproduciendo=\(.playing // "?") gpu_estable=\(.gpu_pid_stable // "?") captura=\(.screenshot_bytes // 0)B"' <<< "$REPORT"
   done
   if [[ "$DO_TYPING" -eq 1 ]]; then
     jq -r '.typing | "typing  : directo(wtype)=\(.direct // "?") ok=\(.direct_ok // "?") | fcitx5-unicode=\(.fcitx5_unicode // "?") ok=\(.fcitx5_unicode_ok // "?") | eventos_composicion=\(.composition_events // "?") | ventana_enfocada=\(.window_focused // "?")"' <<< "$REPORT"
@@ -307,7 +325,7 @@ human_report() {
 verdict() {
   local ok=1
   if [[ "$DO_VIDEO" -eq 1 ]]; then
-    jq -e '[.video[] | (.playing == true) and (.crashed == false) and (.gpu_pid_stable == true) and (.screenshot_bytes > 50000) and (.responsive_after == true)] | all' <<< "$REPORT" > /dev/null || ok=0
+    jq -e '[.video[] | (.playing == true) and (.crashed == false) and (.gpu_pid_stable == true) and (.screenshot_bytes > 50000) and (.responsive_after == true) and (.youtube_ready != false)] | all' <<< "$REPORT" > /dev/null || ok=0
   fi
   if [[ "$DO_TYPING" -eq 1 ]]; then
     jq -e '(.typing.direct_ok == true) and (.typing.fcitx5_unicode_ok == true)' <<< "$REPORT" > /dev/null || ok=0
