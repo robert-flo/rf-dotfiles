@@ -1,0 +1,519 @@
+#!/usr/bin/env bash
+# gup — add + commit (formato domina) + pull --rebase + push, en un comando.
+# Solo repos de la allowlist (vault / forever). El código va por PR.
+# wgup (argv0) o -n/--dry-run: preview, no cambia nada.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+uso: gup [-n|--dry-run] [--skip-gitleaks] [mensaje]
+     wgup  [mensaje]     igual que gup -n (lo instala install.d)
+
+  Sin mensaje, lo arma con los archivos cambiados.
+  --skip-gitleaks  seguir si no hay binario gitleaks (documentado; no
+                   saltea un hallazgo si gitleaks sí está).
+
+Allowlist (owner/repo, una por línea) extra en:
+  ${XDG_CONFIG_HOME:-$HOME/.config}/clavis/gup.allow
+  ${XDG_CONFIG_HOME:-$HOME/.config}/robertos/gup.allow
+Por defecto: robert-flo/pj-domina-rf-vault,
+  robert-flo/pj-domina-brain_forever,
+  robert-flo/pj-domina-home_forever.
+
+Env: GUP_AGENTE (roberto) GUP_PLATAFORMA (terminal; [A-Za-z0-9 ._-])
+  GUP_TIMEOUT (60; >0)
+EOF
+}
+
+gup_err() { printf 'gup: %s\n' "$*" >&2; }
+
+PREVIEW=0
+SKIP_GITLEAKS=0
+if [[ $(basename -- "${0:-gup}") == wgup ]]; then
+  PREVIEW=1
+fi
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -n|--dry-run) PREVIEW=1; shift ;;
+    --skip-gitleaks) SKIP_GITLEAKS=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    -*)
+      gup_err "flag desconocida: $1"
+      usage >&2
+      exit 2
+      ;;
+    *) break ;;
+  esac
+done
+MSG="${*:-}"
+
+if ! command -v timeout >/dev/null 2>&1; then
+  gup_err "falta el binario timeout; no se ejecuta sin límite de tiempo"
+  exit 1
+fi
+
+if [[ -z ${GUP_TIMEOUT+x} ]]; then
+  GUP_TIMEOUT=60
+elif [[ -z $GUP_TIMEOUT || ! $GUP_TIMEOUT =~ ^[0-9]+$ || $((10#$GUP_TIMEOUT)) -le 0 ]]; then
+  gup_err "GUP_TIMEOUT inválido (${GUP_TIMEOUT:-vacío}); debe ser un entero > 0"
+  exit 1
+fi
+
+has_ctrl_line() {
+  [[ $1 == *$'\n'* || $1 == *$'\r'* ]]
+}
+
+AGENTE=${GUP_AGENTE:-roberto}
+PLATAFORMA=${GUP_PLATAFORMA:-terminal}
+
+if has_ctrl_line "$MSG"; then
+  gup_err "el mensaje no puede contener saltos de línea (\\n o \\r)"
+  exit 1
+fi
+if [[ -z $AGENTE ]] || has_ctrl_line "$AGENTE"; then
+  gup_err "GUP_AGENTE inválido (vacío o con salto de línea)"
+  exit 1
+fi
+PLATAFORMA_RE='^[A-Za-z0-9 ._-]+$'
+if [[ -z $PLATAFORMA ]] || has_ctrl_line "$PLATAFORMA" || [[ ! $PLATAFORMA =~ $PLATAFORMA_RE ]]; then
+  gup_err "GUP_PLATAFORMA inválido (vacío, con salto de línea o con caracteres fuera de [A-Za-z0-9 ._-])"
+  exit 1
+fi
+
+if [[ $(git rev-parse --is-inside-work-tree 2>/dev/null) != true ]]; then
+  gup_err "no estás en un repo git (o estás dentro de .git)"
+  exit 1
+fi
+cd "$(git rev-parse --show-toplevel)"
+
+in_boveda() {
+  local root boveda _bov="_bov""eda"
+  root=$(readlink -f . 2>/dev/null || pwd)
+  if [[ $root == *"$_bov"* || $PWD == *"$_bov"* ]]; then
+    return 0
+  fi
+  boveda=$(readlink -f "${HOME}/Work/tries/_boveda" 2>/dev/null || true)
+  if [[ -n ${boveda:-} && ( $root == "$boveda" || $root == "$boveda"/* ) ]]; then
+    return 0
+  fi
+  case $root in
+    "${HOME}/Work/tries/_boveda"|"${HOME}/Work/tries/_boveda"/*) return 0 ;;
+  esac
+  return 1
+}
+
+if in_boveda; then
+  gup_err "esta ruta está dentro de ~/Work/tries/_boveda; gup no actúa ahí"
+  exit 1
+fi
+
+# Parseo estricto de URL de GitHub:
+#   git@github.com:owner/repo(.git)
+#   ssh://git@github.com/owner/repo(.git)
+#   https://([user@])github.com/owner/repo(.git)
+owner_repo_from_url() {
+  local url=$1 rest=""
+  if [[ $url =~ ^git@github\.com:(.+)$ ]]; then
+    rest=${BASH_REMATCH[1]}
+  elif [[ $url =~ ^ssh://git@github\.com/(.+)$ ]]; then
+    rest=${BASH_REMATCH[1]}
+  elif [[ $url =~ ^https://([A-Za-z0-9._-]+@)?github\.com/(.+)$ ]]; then
+    rest=${BASH_REMATCH[2]}
+  else
+    return 0
+  fi
+  rest=${rest%.git}
+  if [[ $rest =~ ^([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)$ ]]; then
+    local owner=${BASH_REMATCH[1]} repo=${BASH_REMATCH[2]}
+    if [[ $owner != "." && $owner != ".." && $repo != "." && $repo != ".." ]]; then
+      printf '%s/%s' "$owner" "$repo"
+    fi
+  fi
+}
+
+DEFAULT_ALLOW=(
+  robert-flo/pj-domina-rf-vault
+  robert-flo/pj-domina-brain_forever
+  robert-flo/pj-domina-home_forever
+)
+
+allow_files() {
+  local config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+  printf '%s/clavis/gup.allow\n' "$config_home"
+  printf '%s/gup.allow\n' "${ROBERTOS_CONFIG_DIR:-$config_home/robertos}"
+}
+
+repo_allowed() {
+  local want=$1 line f
+  local r
+  want=${want,,}   # la comparación no distingue mayúsculas (clones con remote viejo)
+  for r in "${DEFAULT_ALLOW[@]}"; do
+    [[ $want == "${r,,}" ]] && return 0
+  done
+  while IFS= read -r f; do
+    [[ -f $f ]] || continue
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line#"${line%%[![:space:]]*}"}
+      line=${line%"${line##*[![:space:]]}"}
+      [[ -z $line || $line == \#* ]] && continue
+      [[ $want == "${line,,}" ]] && return 0
+    done <"$f"
+  done < <(allow_files)
+  return 1
+}
+
+if git config --get-all remote.origin.pushurl >/dev/null 2>&1; then
+  gup_err "remote.origin.pushurl está configurado; gup no permite pushurl en origin"
+  exit 1
+fi
+
+mapfile -t RAW_ORIGIN_URLS < <(git config --get-all remote.origin.url 2>/dev/null || true)
+if ((${#RAW_ORIGIN_URLS[@]} == 0)) || [[ -z ${RAW_ORIGIN_URLS[0]:-} ]]; then
+  gup_err "no hay remote origin. Los repos de código van por PR"
+  exit 1
+fi
+
+mapfile -t FETCH_ORIGIN_URLS < <(git remote get-url --all origin 2>/dev/null || true)
+mapfile -t PUSH_ORIGIN_URLS < <(git remote get-url --push --all origin 2>/dev/null || true)
+if ((${#FETCH_ORIGIN_URLS[@]} == 0 || ${#PUSH_ORIGIN_URLS[@]} == 0)); then
+  gup_err "no se pudo resolver URL de origin. Los repos de código van por PR"
+  exit 1
+fi
+
+if ((${#RAW_ORIGIN_URLS[@]} != ${#FETCH_ORIGIN_URLS[@]})) || ((${#RAW_ORIGIN_URLS[@]} != ${#PUSH_ORIGIN_URLS[@]})); then
+  gup_err "url.*.insteadOf / pushInsteadOf o pushurl altera las URLs de origin; abortando"
+  exit 1
+fi
+for _gup_i in "${!RAW_ORIGIN_URLS[@]}"; do
+  if [[ ${FETCH_ORIGIN_URLS[$_gup_i]} != "${RAW_ORIGIN_URLS[$_gup_i]}" || ${PUSH_ORIGIN_URLS[$_gup_i]} != "${RAW_ORIGIN_URLS[$_gup_i]}" ]]; then
+    gup_err "url.*.insteadOf / pushInsteadOf reescribe la URL de origin; abortando"
+    exit 1
+  fi
+done
+
+while IFS= read -r -d '' _gup_entry; do
+  _gup_val=${_gup_entry#*$'\n'}
+  [[ -z $_gup_val ]] && continue
+  for _gup_u in "${RAW_ORIGIN_URLS[@]}" "${PUSH_ORIGIN_URLS[@]}"; do
+    if [[ $_gup_u == "$_gup_val"* ]]; then
+      gup_err "regla url.*.insteadOf / pushInsteadOf coincide con origin ('${_gup_val}'); abortando"
+      exit 1
+    fi
+  done
+done < <(git config --null --get-regexp '^url\..*\.(push)?insteadof$' 2>/dev/null || true)
+
+REPO_SLUG=""
+for _gup_u in "${PUSH_ORIGIN_URLS[@]}" "${RAW_ORIGIN_URLS[@]}" "${FETCH_ORIGIN_URLS[@]}"; do
+  _gup_slug=$(owner_repo_from_url "$_gup_u")
+  if [[ -z $_gup_slug ]]; then
+    gup_err "repo '${_gup_u}' no es una URL GitHub válida o no está en la allowlist. Los repos de código van por PR"
+    exit 1
+  fi
+  if ! repo_allowed "$_gup_slug"; then
+    gup_err "repo '${_gup_slug}' no está en la allowlist. Los repos de código van por PR"
+    exit 1
+  fi
+  if [[ -z $REPO_SLUG ]]; then
+    REPO_SLUG=$_gup_slug
+  elif [[ $_gup_slug != "$REPO_SLUG" ]]; then
+    gup_err "remote origin tiene múltiples URLs con distinto repo ('${REPO_SLUG}' vs '${_gup_slug}')"
+    exit 1
+  fi
+done
+ORIGIN=${PUSH_ORIGIN_URLS[0]}
+
+BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+if [[ -z $BRANCH ]]; then
+  gup_err "HEAD está detached; necesitás estar en una rama"
+  exit 1
+fi
+
+while IFS= read -r _b_remote; do
+  if [[ $_b_remote != origin ]]; then
+    gup_err "branch.${BRANCH}.remote es '${_b_remote}' (debe ser 'origin')"
+    exit 1
+  fi
+done < <(git config --get-all "branch.${BRANCH}.remote" 2>/dev/null || true)
+
+while IFS= read -r _b_push_remote; do
+  if [[ $_b_push_remote != origin ]]; then
+    gup_err "branch.${BRANCH}.pushRemote es '${_b_push_remote}' (debe ser 'origin')"
+    exit 1
+  fi
+done < <(git config --get-all "branch.${BRANCH}.pushRemote" 2>/dev/null || true)
+
+while IFS= read -r _push_default; do
+  if [[ $_push_default != origin ]]; then
+    gup_err "remote.pushDefault es '${_push_default}' (debe ser 'origin')"
+    exit 1
+  fi
+done < <(git config --get-all remote.pushDefault 2>/dev/null || true)
+
+gup_dirty=0
+while IFS= read -r -d '' _gup_rec || [[ -n ${_gup_rec:-} ]]; do
+  if [[ -n ${_gup_rec:-} ]]; then
+    gup_dirty=1
+    break
+  fi
+done < <(git status --porcelain -z)
+if ((gup_dirty == 0)); then
+  printf '%s\n' "gup: nada para commitear, working tree limpio"
+  exit 0
+fi
+
+printf '→ remote: %s\n' "$ORIGIN"
+printf '→ branch: %s\n' "$BRANCH"
+git status --short
+
+# Rutas a commitear (porcelain -z: espacios y rename/copy).
+# En rename/copy, rec:3 es el path NUEVO y el registro siguiente es el origen.
+CHANGED_PATHS=()
+collect_changed_paths() {
+  local rec xy path _orig
+  CHANGED_PATHS=()
+  while IFS= read -r -d '' rec || [[ -n ${rec:-} ]]; do
+    [[ -z ${rec:-} ]] && continue
+    xy=${rec:0:2}
+    path=${rec:3}
+    if [[ ${xy:0:1} == R || ${xy:0:1} == C || ${xy:1:1} == R || ${xy:1:1} == C ]]; then
+      if ! IFS= read -r -d '' _orig; then
+        :
+      fi
+    fi
+    CHANGED_PATHS+=("$path")
+  done < <(git status --porcelain -z)
+}
+
+collect_changed_paths
+
+strip_numeric_prefix() {
+  local d=$1
+  if [[ $d =~ ^[0-9]+-(.+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    printf '%s' "$d"
+  fi
+}
+
+sanitize_area() {
+  local s=$1
+  s=${s,,}
+  s=$(printf '%s' "$s" | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+//; s/-+$//')
+  printf '%s' "$s"
+}
+
+area_from_paths() {
+  local p top raw
+  local -A seen=()
+  local -a dirs=()
+  for p in "${CHANGED_PATHS[@]}"; do
+    if [[ $p == */* ]]; then
+      top=${p%%/*}
+      if [[ -z ${seen[$top]+x} ]]; then
+        seen[$top]=1
+        dirs+=("$top")
+      fi
+    fi
+  done
+  if ((${#dirs[@]} == 0)); then
+    printf 'raiz'
+  elif ((${#dirs[@]} == 1)); then
+    raw=$(strip_numeric_prefix "${dirs[0]}")
+    sanitize_area "$raw"
+  else
+    printf 'varios'
+  fi
+}
+
+auto_what() {
+  local n=${#CHANGED_PATHS[@]} names="" b p
+  local -A ub=()
+  local -a uniq=()
+  for p in "${CHANGED_PATHS[@]}"; do
+    b=$(basename -- "$p")
+    if [[ -z ${ub[$b]+x} ]]; then
+      ub[$b]=1
+      uniq+=("$b")
+    fi
+  done
+  names=$(IFS=', '; echo "${uniq[*]}")
+  names=${names:0:72}
+  printf 'update %s file(s): %s' "$n" "$names"
+}
+
+AREA=$(area_from_paths)
+if [[ ! $AREA =~ ^[a-z0-9_-]+$ ]]; then
+  gup_err "área inválida ('${AREA}'); debe cumplir ^[a-z0-9_-]+$"
+  exit 1
+fi
+
+WHAT=$MSG
+if [[ -z $WHAT ]]; then
+  WHAT=$(auto_what)
+fi
+if has_ctrl_line "$WHAT"; then
+  gup_err "el mensaje de commit no puede contener saltos de línea (\\n o \\r)"
+  exit 1
+fi
+
+SUBJECT="domina(${AREA}): ${WHAT}"
+TRAILER="agente: ${AGENTE} · plataforma: ${PLATAFORMA}"
+
+if ((PREVIEW)); then
+  printf '[preview] would commit: "%s" (no changes made)\n' "$SUBJECT"
+  exit 0
+fi
+
+# Guardamos el árbol del index previo para deshacer solo lo que gup agregó
+# (funciona también en un repo sin HEAD / sin commits previos).
+SAVED_INDEX_TREE=$(git write-tree)
+
+unstage_added() {
+  if [[ -n ${SAVED_INDEX_TREE:-} ]]; then
+    git read-tree "$SAVED_INDEX_TREE" 2>/dev/null || true
+    git update-index -q --refresh >/dev/null 2>&1 || true
+  fi
+}
+
+gitleaks_install_hint() {
+  cat >&2 <<'EOF'
+gup: no está gitleaks; no se commitea a ciegas.
+  instalá: https://github.com/gitleaks/gitleaks#installing
+  p.ej. brew install gitleaks
+       go install github.com/gitleaks/gitleaks/v8@latest
+  o pasá --skip-gitleaks si sabés lo que hacés.
+EOF
+}
+
+run_gitleaks() {
+  local gl_out gl_rc
+  gl_out=$(timeout --kill-after=5 "$GUP_TIMEOUT" gitleaks git --staged 2>&1)
+  gl_rc=$?
+  if ((gl_rc != 0 && gl_rc != 124 && gl_rc != 137)) && [[ $gl_out == *"unknown command"* || $gl_out == *"Unknown command"* || $gl_out == *"unknown subcommand"* ]]; then
+    gl_out=$(timeout --kill-after=5 "$GUP_TIMEOUT" gitleaks protect --staged 2>&1)
+    gl_rc=$?
+  fi
+  if [[ -n $gl_out ]]; then
+    printf '%s\n' "$gl_out" >&2
+  fi
+  return "$gl_rc"
+}
+
+git add -A
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  if ((SKIP_GITLEAKS)); then
+    printf 'gup: aviso: no hay gitleaks; --skip-gitleaks activo\n' >&2
+  else
+    unstage_added
+    gitleaks_install_hint
+    exit 1
+  fi
+else
+  set +e
+  run_gitleaks
+  gl_rc=$?
+  set -e
+  if ((gl_rc != 0)); then
+    unstage_added
+    if ((gl_rc == 124 || gl_rc == 137)); then
+      gup_err "timeout en gitleaks (rc=${gl_rc}); no hay commit. Se deshizo el add"
+    else
+      gup_err "gitleaks encontró secretos (rc=${gl_rc}); no hay commit. Se deshizo el add"
+    fi
+    exit 1
+  fi
+fi
+
+# Visibilidad ANTES del commit: tiene que ser PRIVATE (con slug explícito y timeout).
+ensure_private_github() {
+  if ! command -v gh >/dev/null 2>&1; then
+    unstage_added
+    gup_err "origin es GitHub y no está gh; no se verifica visibilidad. No hay commit ni push"
+    exit 1
+  fi
+  local vis gh_rc
+  set +e
+  vis=$(timeout --kill-after=5 "$GUP_TIMEOUT" gh repo view "$REPO_SLUG" --json visibility --jq .visibility 2>/dev/null)
+  gh_rc=$?
+  set -e
+  if ((gh_rc == 124 || gh_rc == 137)); then
+    unstage_added
+    gup_err "timeout en gh repo view ${REPO_SLUG} (rc=${gh_rc}); no hay commit ni push"
+    exit 1
+  fi
+  if ((gh_rc != 0)) || [[ -z ${vis:-} ]]; then
+    unstage_added
+    gup_err "origin es GitHub y gh repo view falló (rc=${gh_rc}); no hay commit ni push"
+    exit 1
+  fi
+  if [[ $vis != PRIVATE ]]; then
+    unstage_added
+    gup_err "origin es GitHub (${vis}); gup solo hace push a repos PRIVATE"
+    exit 1
+  fi
+}
+
+ensure_private_github
+
+_gup_commit=$(mktemp)
+trap 'rm -f "${_gup_commit:-}"' EXIT
+printf '%s\n\n%s\n' "$SUBJECT" "$TRAILER" >"$_gup_commit"
+if ! git commit -q -F "$_gup_commit"; then
+  gup_err "commit falló"
+  exit 1
+fi
+rm -f "$_gup_commit"
+trap - EXIT
+_gup_commit=
+
+export GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=20
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
+
+git_timed() {
+  timeout --kill-after=5 "$GUP_TIMEOUT" git "$@"
+}
+
+# En worktrees/submódulos .git es un archivo: pedirle a git la ruta real.
+rebase_in_progress() {
+  local d
+  for d in rebase-merge rebase-apply; do
+    d=$(git rev-parse --git-path "$d" 2>/dev/null) || continue
+    [[ -d $d ]] && return 0
+  done
+  return 1
+}
+
+# Nunca git push --force.
+if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  set +e
+  git_timed pull --rebase --autostash
+  pull_rc=$?
+  set -e
+  if ((pull_rc != 0)); then
+    if ((pull_rc == 124)) || ((pull_rc == 137)); then
+      gup_err "timeout en git pull --rebase --autostash (rc=${pull_rc}). Para recuperar: 'git rebase --abort' (o 'git rebase --continue') y revisá 'git stash list' por autostash. No hay push"
+    elif rebase_in_progress; then
+      gup_err "conflicto en git pull --rebase --autostash. Resolvé y 'git rebase --continue' (o --abort). No hay push"
+    else
+      gup_err "git pull --rebase falló (rc=${pull_rc}). No hay push"
+    fi
+    exit 1
+  fi
+fi
+
+set +e
+git_timed -c push.recurseSubmodules=no push origin "HEAD:refs/heads/${BRANCH}"
+push_rc=$?
+set -e
+if ((push_rc != 0)); then
+  if ((push_rc == 124)) || ((push_rc == 137)); then
+    gup_err "timeout en git push (rc=${push_rc}); quedó el commit local"
+  else
+    gup_err "push falló (rc=${push_rc}; commit local)"
+  fi
+  exit 1
+fi
+printf '✓ committed + pushed: %s\n' "$SUBJECT"
