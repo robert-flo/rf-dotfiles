@@ -5,6 +5,9 @@
 CHEZMOI_BIN ?= chezmoi
 CHEZMOI_PROFILES ?= clavis nyxuri omarchy
 
+# apply = apply completo, el repo gana (scripts/rf-make-daily.sh apply): sudo una sola vez con
+# keepalive, --force, re-ejecuta todos los run_onchange_* y los scripts fallan sin sudo.
+# `make safe` (daily.mk) no cambia: nunca pasa --force ni exige sudo.
 .PHONY: help-chezmoi status diff apply apply-clavis apply-nyxuri apply-omarchy managed ignored verify
 
 help-chezmoi: ## Show Chezmoi lifecycle targets
@@ -13,10 +16,10 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make status$(NC)               Show pending changes against the chezmoi source copy\n"
 	@printf "  $(GREEN)make diff$(NC)                 Show full diff against the chezmoi source copy\n"
-	@printf "  $(GREEN)make apply$(NC)                Apply dotfiles for current user (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-clavis$(NC)         Apply with CHEZMOI_PROFILE=clavis (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-nyxuri$(NC)         Apply with CHEZMOI_PROFILE=nyxuri (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-omarchy$(NC)        Apply with CHEZMOI_PROFILE=omarchy (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply$(NC)                Full apply for current user: asks sudo once, re-runs all scripts, overwrites local changes (see make lose) (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-clavis$(NC)         Full apply with CHEZMOI_PROFILE=clavis (sudo once, all scripts, overwrites local changes) (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-nyxuri$(NC)         Full apply with CHEZMOI_PROFILE=nyxuri (sudo once, all scripts, overwrites local changes) (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-omarchy$(NC)        Full apply with CHEZMOI_PROFILE=omarchy (sudo once, all scripts, overwrites local changes) (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make managed$(NC)              List managed paths for active profile\n"
 	@printf "  $(GREEN)make ignored$(NC)              List ignored paths for active profile\n"
 	@printf "  $(GREEN)make verify$(NC)               Verify templates and Makefile/make/* exclusion\n"
@@ -51,32 +54,36 @@ ifndef EMBEDDED
 	@printf "  • verify templates:     $(BLUE)make verify$(NC)\n\n"
 endif
 
-apply: ## Apply dotfiles using repo as source (supports DRY_RUN=1)
+apply: ## Full apply using repo as source: sudo once, re-runs all scripts, overwrites local changes (supports DRY_RUN=1)
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply · chezmoi apply (-S $(CURDIR))$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI_BIN) apply -S "$(CURDIR)"
+	@CHEZMOI_BIN="$(CHEZMOI_BIN)" $(DAILY_SH) apply "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
+	@printf "  • apply without root tasks / without --force:   $(BLUE)make safe$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
 
-apply-clavis apply-nyxuri apply-omarchy: apply-%: ## Apply dotfiles for a specific CHEZMOI_PROFILE (supports DRY_RUN=1)
+apply-clavis apply-nyxuri apply-omarchy: apply-%: ## Full apply for a specific CHEZMOI_PROFILE: sudo once, re-runs all scripts, overwrites local changes (supports DRY_RUN=1)
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply-$* · chezmoi apply (CHEZMOI_PROFILE=$*)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) env CHEZMOI_PROFILE="$*" $(CHEZMOI_BIN) apply -S "$(CURDIR)"
+	@CHEZMOI_BIN="$(CHEZMOI_BIN)" $(DAILY_SH) apply "$(CURDIR)" "$*"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
+	@printf "  • apply without root tasks / without --force:   $(BLUE)make safe$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif

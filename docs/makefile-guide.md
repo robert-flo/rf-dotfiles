@@ -74,7 +74,7 @@ Cuando editas dotfiles, scripts o `.chezmoidata/packages.json` en tu rama:
    - `make lint` — pasa `shellcheck` sobre `scripts/yt-*`, `scripts/rf-make-daily.sh` y `scripts/tests/*.sh`.
    - `make test` — ejecuta las suites de pruebas en `scripts/tests/*.sh`.
 
-3. **Prueba en seco y revisa Git:**
+3. **Prueba en seco y revisa Git** (`make apply` es un apply completo: `--force`, sudo una vez y todos los scripts; mira antes `make lose`. `chezmoi apply` a secas sigue tolerante y solo corre los scripts que cambiaron):
    ```bash
    make apply DRY_RUN=1
    make git-status
@@ -96,7 +96,7 @@ Puedes ver esta lista en la terminal en cualquier momento con `make help`.
 | `make morning` | Tablero completo: git vs `origin/master`, perfil, `sudo`, `lose` y `scripts` | No (hace `git fetch`) |
 | `make lose` | Lista archivos del `$HOME` que `apply` pisaría; sale `1` si hay alguno | No |
 | `make pull` | `git pull --rebase --autostash` en `source-path` y clon actual | Sí (`DRY_RUN=1`) |
-| `make safe` | Corre `lose` y aplica el `$HOME` solo si `lose` está vacío | Sí (`DRY_RUN=1`) |
+| `make safe` | Corre `lose` y aplica el `$HOME` solo si `lose` está vacío; nunca pasa `--force` ni exige sudo (los scripts de raíz siguen tolerantes) | Sí (`DRY_RUN=1`) |
 | `make root` | Ejecuta solo los scripts de raíz (paquetes y herramientas); no toca `$HOME` | Sí (`DRY_RUN=1`) |
 
 ### Ciclo de vida Chezmoi (`make/chezmoi.mk`)
@@ -104,8 +104,8 @@ Puedes ver esta lista en la terminal en cualquier momento con `make help`.
 | :--- | :--- | :--- |
 | `make status` | Muestra `chezmoi status` contra la copia de producción | No |
 | `make diff` | Muestra `chezmoi diff` completo contra la copia de producción | No |
-| `make apply` | Ejecuta `chezmoi apply -S $(CURDIR)` | Sí (`DRY_RUN=1`) |
-| `make apply-<perfil>` | Aplica forzando `CHEZMOI_PROFILE` (`clavis`, `nyxuri`, `omarchy`) | Sí (`DRY_RUN=1`) |
+| `make apply` | **Apply completo**: pide `sudo` una sola vez (`sudo -v` + keepalive que no sobrevive al apply), borra el estado de los `run_onchange_*` para re-ejecutar **todos** los scripts, y corre `chezmoi apply --force -S $(CURDIR)` con `RF_APPLY_FULL=1`: sobrescribe sin preguntar lo que difiera del repo (míralo antes con `make lose`) y los tres scripts que necesitan root (paquetes, herramientas del sistema y permisos de Spicetify) **fallan** si no hay sudo; los demás scripts siguen con sus avisos tolerantes. Sin terminal ni sudo sin contraseña falla antes de tocar nada. | Sí (`DRY_RUN=1` no pide sudo ni toca estado) |
+| `make apply-<perfil>` | Igual que `apply`, forzando `CHEZMOI_PROFILE` (`clavis`, `nyxuri`, `omarchy`) | Sí (`DRY_RUN=1`) |
 | `make managed` | Lista rutas gestionadas para el perfil activo en `$(CURDIR)` | No |
 | `make ignored` | Lista rutas ignoradas para el perfil activo en `$(CURDIR)` | No |
 | `make verify` | Verifica `.chezmoiignore.tmpl` y exclusión de `Makefile`/`make/*` | No (`DRY_RUN=1`) |

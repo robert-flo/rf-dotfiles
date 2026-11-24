@@ -17,6 +17,10 @@ elif sudo -n true 2>/dev/null; then
 fi
 
 if [[ "$CAN_SUDO" == false ]]; then
+  if [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+    echo "==> [chezmoi] ERROR: apply completo (make apply*) sin privilegios sudo: no se pueden sincronizar los paquetes del sistema." >&2
+    exit 1
+  fi
   echo "==> [chezmoi] Omitiendo sincronización de paquetes del sistema (sin privilegios sudo directos)."
   exit 0
 fi
