@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_install-spicetify.sh.tmpl
+# Configura permisos de /opt/spotify, prefs y aplica Spicetify (Sleek + adblock.js)
+# color.ini hash: {{ include "dot_config/spicetify/Themes/Sleek/color.ini" | sha256sum }}
+# user.css hash: {{ include "dot_config/spicetify/Themes/Sleek/user.css" | sha256sum }}
+# adblock.js hash: {{ include "dot_config/spicetify/Extensions/adblock.js" | sha256sum }}
+# modify_config-xpui.ini.tmpl hash: {{ include "dot_config/spicetify/modify_config-xpui.ini.tmpl" | sha256sum }}
+# ==============================================================================
+set -euo pipefail
+
+CONFIG_FILE="{{ .chezmoi.homeDir }}/.config/spicetify/config-xpui.ini"
+PREFS_FILE="{{ .chezmoi.homeDir }}/.config/spotify/prefs"
+
+# Si el perfil excluye spicetify (ej. clavis-upstream), no hacer nada
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  exit 0
+fi
+
+if ! command -v spicetify >/dev/null 2>&1; then
+  echo "==> [chezmoi] Aviso: spicetify no está instalado; omitiendo configuración."
+  exit 0
+fi
+
+if [[ ! -d /opt/spotify ]]; then
+  echo "==> [chezmoi] Aviso: /opt/spotify no existe; omitiendo configuración de Spicetify."
+  exit 0
+fi
+
+CAN_SUDO=false
+SUDO_CMD=""
+if [[ $EUID -eq 0 ]]; then
+  CAN_SUDO=true
+elif sudo -n true 2>/dev/null; then
+  CAN_SUDO=true
+  SUDO_CMD="sudo"
+fi
+
+if [[ ! -w /opt/spotify || ! -w /opt/spotify/Apps ]] || [[ -n "$(find /opt/spotify/Apps ! -writable -print -quit 2>/dev/null)" ]]; then
+  if [[ "$CAN_SUDO" == true ]]; then
+    echo "==> [chezmoi] Ajustando permisos de escritura en /opt/spotify para Spicetify..."
+    $SUDO_CMD chmod a+wr /opt/spotify
+    $SUDO_CMD chmod -R a+wr /opt/spotify/Apps
+  else
+    echo "==> [chezmoi] Aviso: /opt/spotify no es escribible y no hay sudo directo; omitiendo Spicetify."
+    exit 0
+  fi
+fi
+
+if [[ ! -f "$PREFS_FILE" ]]; then
+  mkdir -p "$(dirname "$PREFS_FILE")"
+  touch "$PREFS_FILE"
+fi
+
+# Verificar si ya existe un backup registrado en config-xpui.ini
+has_backup=false
+if awk '/^\[Backup\]/{f=1; next} /^\[/{f=0} f && /^(version|with)[[:space:]]*=/{found=1} END{exit !found}' "$CONFIG_FILE"; then
+  has_backup=true
+fi
+
+if [[ "$has_backup" == true ]]; then
+  echo "==> [chezmoi] Aplicando tema y extensiones de Spicetify para {{ .chezmoi.username }}..."
+  spicetify apply || spicetify backup apply
+else
+  echo "==> [chezmoi] Creando backup y aplicando Spicetify para {{ .chezmoi.username }}..."
+  spicetify backup apply
+fi
