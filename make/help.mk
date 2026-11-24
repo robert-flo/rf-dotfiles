@@ -16,6 +16,10 @@ ifndef EMBEDDED
 endif
 	@$(MAKE) -s --no-print-directory help-general
 	@$(MAKE) -s --no-print-directory help-chezmoi
+	@$(MAKE) -s --no-print-directory help-packages
+	@$(MAKE) -s --no-print-directory help-lint
+	@$(MAKE) -s --no-print-directory help-doctor
+	@$(MAKE) -s --no-print-directory help-git
 ifndef EMBEDDED
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"

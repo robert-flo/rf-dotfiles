@@ -27,3 +27,7 @@ NC     := \033[0m
 
 include make/help.mk
 include make/chezmoi.mk
+include make/packages.mk
+include make/lint.mk
+include make/doctor.mk
+include make/git.mk

@@ -127,7 +127,7 @@ DEFAULT_ARGS=(
   --embed-thumbnail
   --convert-thumbnails jpg
   --embed-metadata
-  --sponsorblock-remove sponsor,selfpromo,interaction
+  --sponsorblock-remove "sponsor,selfpromo,interaction"
   -P "$DEST_DIR"
   -o "%(playlist_title,playlist_id)s/%(title)s.%(ext)s"
 )
