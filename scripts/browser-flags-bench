@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# browser-flags-bench — Prueba una configuración de flags de un navegador
+# Chromium contra un perfil temporal, en la sesión real (niri + Intel HD 530).
+#
+# Mide, por configuración:
+#   - decode por hardware (chrome://gpu y decoder real de Media: VaapiVideoDecoder)
+#   - CPU del navegador con un video H.264 y uno VP9 a 1080p
+#   - escritura de á é ñ (wtype directo y módulo Unicode de fcitx5)
+#   - estabilidad: sin caídas, proceso GPU estable, captura no en blanco
+#
+# Nunca toca los perfiles diarios: todo vive en un directorio temporal que se
+# borra al salir (también con Ctrl+C o error). Correrlo dos veces deja el mismo
+# estado. OJO: abre ventanas reales del navegador en la pantalla (~70 s).
+# ==============================================================================
+set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROBE="$SELF_DIR/lib/browser_probe.py"
+DEFAULT_BROWSER="/opt/google/chrome/chrome"
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_BOLD=$'\033[1m'; C_BLUE=$'\033[34m'; C_CYAN=$'\033[36m'; C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'; C_RED=$'\033[31m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+else
+  C_BOLD=""; C_BLUE=""; C_CYAN=""; C_GREEN=""; C_YELLOW=""; C_RED=""; C_DIM=""; C_RST=""
+fi
+
+usage() {
+  cat << EOF
+${C_BOLD}${C_BLUE}browser-flags-bench${C_RST} — evidencia por configuración de flags (perfil temporal, sesión real)
+
+${C_BOLD}Uso:${C_RST}
+  ${C_GREEN}browser-flags-bench${C_RST} ${C_CYAN}[run]${C_RST} [opciones]          Mide una configuración
+  ${C_GREEN}browser-flags-bench${C_RST} ${C_CYAN}check-flags${C_RST} [opciones]    Verifica que cada flag exista en el binario
+  ${C_GREEN}browser-flags-bench${C_RST} ${C_CYAN}process-model${C_RST} [opciones]  Cuenta procesos y memoria con 3 pestañas del mismo sitio y
+                                              tumba una para ver cuántas sobreviven (p. ej. --process-per-site)
+
+${C_BOLD}Opciones:${C_RST}
+  ${C_CYAN}-b, --browser RUTA${C_RST}     Binario real del navegador (default: $DEFAULT_BROWSER)
+  ${C_CYAN}-f, --flags-file ARCH${C_RST}  Archivo de flags (uno o varios por línea, # comenta)
+  ${C_CYAN}-F, --flag FLAG${C_RST}        Flag extra (repetible), se agrega después del archivo
+  ${C_CYAN}-l, --label NOMBRE${C_RST}     Etiqueta de la configuración en el reporte
+  ${C_CYAN}-c, --codecs LISTA${C_RST}     h264,vp9 (default: ambos)
+  ${C_CYAN}-u, --youtube URL${C_RST}      Mide además un video de YouTube a 1080p (usa la red; reporta codec real y CPU)
+  ${C_CYAN}-i, --inject ARCH.js${C_RST}   Inyecta ese JS antes de cada documento del video de YouTube (p. ej. h264only.js)
+  ${C_CYAN}-s, --seconds N${C_RST}        Segundos de cada ventana de medición de CPU (default: 8)
+  ${C_CYAN}-n, --windows N${C_RST}        Ventanas consecutivas por códec; se reporta la mediana (default: 3)
+  ${C_CYAN}-w, --warmup N${C_RST}         Calentamiento antes de medir (default: 4)
+      ${C_CYAN}--no-video${C_RST}         Omite las pruebas de video
+      ${C_CYAN}--no-typing${C_RST}        Omite la prueba de escritura
+      ${C_CYAN}--startup-timeout N${C_RST} Segundos para que el navegador abra el puerto de depuración (default: 20)
+      ${C_CYAN}--json${C_RST}             JSON por stdout (el reporte legible va a stderr)
+  ${C_CYAN}-h, --help${C_RST}             Esta ayuda
+
+${C_BOLD}Notas:${C_RST}
+  - El arnés es dueño de --user-data-dir, --remote-debugging-*, --no-first-run y
+    --password-store: se descartan del archivo de flags candidato.
+  - Abre ventanas del navegador en la pantalla real durante la prueba (~70 s con valores por defecto).
+  - Requiere python3, ffmpeg, wtype, niri, curl y jq.
+EOF
+}
+
+die() { printf '%s\n' "${C_RED}error:${C_RST} $*" >&2; exit 1; }
+
+MODE="run"
+BROWSER="$DEFAULT_BROWSER"
+FLAGS_FILE=""
+EXTRA_FLAGS=()
+LABEL=""
+CODECS="h264,vp9"
+YOUTUBE_URL=""
+INJECT_JS=""
+SECONDS_MEASURE=8
+WINDOWS=3
+WARMUP=4
+DO_VIDEO=1
+DO_TYPING=1
+STARTUP_TIMEOUT=20
+JSON_OUT=0
+
+if [[ "${1:-}" == "run" || "${1:-}" == "check-flags" || "${1:-}" == "process-model" ]]; then
+  MODE="$1"; shift
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -b|--browser) [[ $# -ge 2 ]] || die "$1 requiere un valor"; BROWSER="$2"; shift 2 ;;
+    -f|--flags-file) [[ $# -ge 2 ]] || die "$1 requiere un valor"; FLAGS_FILE="$2"; shift 2 ;;
+    -F|--flag) [[ $# -ge 2 ]] || die "$1 requiere un valor"; EXTRA_FLAGS+=("$2"); shift 2 ;;
+    -l|--label) [[ $# -ge 2 ]] || die "$1 requiere un valor"; LABEL="$2"; shift 2 ;;
+    -c|--codecs) [[ $# -ge 2 ]] || die "$1 requiere un valor"; CODECS="$2"; shift 2 ;;
+    -u|--youtube) [[ $# -ge 2 ]] || die "$1 requiere un valor"; YOUTUBE_URL="$2"; shift 2 ;;
+    -i|--inject) [[ $# -ge 2 ]] || die "$1 requiere un valor"; INJECT_JS="$2"; shift 2 ;;
+    -s|--seconds) [[ $# -ge 2 ]] || die "$1 requiere un valor"; SECONDS_MEASURE="$2"; shift 2 ;;
+    -n|--windows) [[ $# -ge 2 ]] || die "$1 requiere un valor"; WINDOWS="$2"; shift 2 ;;
+    -w|--warmup) [[ $# -ge 2 ]] || die "$1 requiere un valor"; WARMUP="$2"; shift 2 ;;
+    --no-video) DO_VIDEO=0; shift ;;
+    --no-typing) DO_TYPING=0; shift ;;
+    --startup-timeout) [[ $# -ge 2 ]] || die "$1 requiere un valor"; STARTUP_TIMEOUT="$2"; shift 2 ;;
+    --json) JSON_OUT=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "opción desconocida: $1" ;;
+  esac
+done
+
+[[ "$SECONDS_MEASURE" =~ ^[0-9]+$ && "$WINDOWS" =~ ^[1-9][0-9]*$ && "$WARMUP" =~ ^[0-9]+$ && "$STARTUP_TIMEOUT" =~ ^[0-9]+$ ]] \
+  || die "--seconds, --windows, --warmup y --startup-timeout deben ser enteros (windows >= 1)"
+[[ -x "$BROWSER" ]] || die "no existe o no es ejecutable el binario: $BROWSER"
+[[ -z "$FLAGS_FILE" || -f "$FLAGS_FILE" ]] || die "no existe el archivo de flags: $FLAGS_FILE"
+[[ -z "$INJECT_JS" || -f "$INJECT_JS" ]] || die "no existe el archivo a inyectar: $INJECT_JS"
+[[ -n "$LABEL" ]] || LABEL="$(basename "$BROWSER")${FLAGS_FILE:+:$(basename "$FLAGS_FILE")}"
+
+# --- Flags candidatos --------------------------------------------------------
+# Un flag por token; se descartan los que el arnés controla.
+CANDIDATE=()
+load_candidate_flags() {
+  local line tok
+  if [[ -n "$FLAGS_FILE" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%%#*}"
+      for tok in $line; do CANDIDATE+=("$tok"); done
+    done < "$FLAGS_FILE"
+  fi
+  for tok in "${EXTRA_FLAGS[@]}"; do CANDIDATE+=("$tok"); done
+  local kept=()
+  for tok in "${CANDIDATE[@]}"; do
+    case "$tok" in
+      --user-data-dir=*|--remote-debugging-*|--no-first-run|--password-store=*|--no-default-browser-check) ;;
+      *) kept+=("$tok") ;;
+    esac
+  done
+  CANDIDATE=("${kept[@]}")
+}
+load_candidate_flags
+
+# --- check-flags -------------------------------------------------------------
+# Un nombre "existe" si aparece en el binario como palabra completa, no como subcadena.
+# Los features modernos de Chromium (BASE_FEATURE(kNombre)) guardan el literal como
+# "kNombre" y el nombre runtime es "Nombre", por eso para features se acepta el prefijo k.
+binary_has() {
+  local prefix="${2:-}"
+  LC_ALL=C grep -a -q -E -- "(^|[^A-Za-z0-9_-])${prefix}${1}([^A-Za-z0-9_-]|$)" "$BROWSER"
+}
+
+cmd_check_flags() {
+  local tok name vals feat status missing=0
+  local -a feats
+  printf '%s\n' "${C_BOLD}check-flags${C_RST} $BROWSER ($("$BROWSER" --version 2> /dev/null | head -1 || true))"
+  for tok in "${CANDIDATE[@]}"; do
+    case "$tok" in
+      --enable-features=*|--disable-features=*|--enable-blink-features=*|--disable-blink-features=*)
+        name="${tok%%=*}"; vals="${tok#*=}"
+        IFS=',' read -ra feats <<< "$vals"
+        for feat in "${feats[@]}"; do
+          feat="${feat%%:*}"
+          if binary_has "$feat" "k?"; then status="OK     "; else status="MISSING"; missing=$((missing + 1)); fi
+          printf '  %s %s %s\n' "$status" "$name" "$feat"
+        done
+        ;;
+      --*)
+        name="${tok#--}"; name="${name%%=*}"
+        if binary_has "$name"; then status="OK     "; else status="MISSING"; missing=$((missing + 1)); fi
+        printf '  %s switch %s\n' "$status" "--$name"
+        ;;
+      *) printf '  SKIP    %s (no es un flag)\n' "$tok" ;;
+    esac
+  done
+  printf '%s\n' "missing=$missing"
+  [[ "$missing" -eq 0 ]]
+}
+
+if [[ "$MODE" == "check-flags" ]]; then
+  cmd_check_flags
+  exit $?
+fi
+
+# --- run ---------------------------------------------------------------------
+for tool in python3 ffmpeg wtype niri curl jq; do
+  command -v "$tool" > /dev/null || die "falta la herramienta: $tool"
+done
+[[ -n "${WAYLAND_DISPLAY:-}" ]] || die "hace falta una sesión Wayland (WAYLAND_DISPLAY vacío)"
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/browser-flags-bench.XXXXXX")"
+PROFILE=""
+LEADER=""
+
+stop_browser() {
+  [[ -n "$LEADER" ]] || return 0
+  kill -TERM -- "-$LEADER" 2> /dev/null || true
+  for _ in $(seq 1 40); do
+    pgrep -f -- "--user-data-dir=$PROFILE" > /dev/null 2>&1 || break
+    sleep 0.25
+  done
+  pkill -KILL -f -- "--user-data-dir=$PROFILE" 2> /dev/null || true
+  wait "$LEADER" 2> /dev/null || true
+  LEADER=""
+}
+
+cleanup() {
+  stop_browser
+  stop_http
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
+
+HTTP_PID=""
+stop_http() {
+  [[ -z "$HTTP_PID" ]] || { kill "$HTTP_PID" 2> /dev/null || true; wait "$HTTP_PID" 2> /dev/null || true; }
+  HTTP_PID=""
+}
+
+PORT=""
+launch_browser() {
+  local url="$1"
+  PROFILE="$(mktemp -d "$WORK/profile.XXXXXX")"
+  PORT="$(free_port)"
+  setsid "$BROWSER" \
+    --user-data-dir="$PROFILE" --remote-debugging-port="$PORT" --remote-debugging-address=127.0.0.1 \
+    --no-first-run --no-default-browser-check --password-store=basic --autoplay-policy=no-user-gesture-required \
+    "${CANDIDATE[@]}" "$url" > "$PROFILE/browser.log" 2>&1 &
+  LEADER=$!
+  for _ in $(seq 1 $((STARTUP_TIMEOUT * 4))); do
+    if curl -fs "http://127.0.0.1:$PORT/json/version" > /dev/null 2>&1; then return 0; fi
+    kill -0 "$LEADER" 2> /dev/null || die "el navegador terminó antes de abrir el puerto de depuración (ver log: $PROFILE/browser.log)"
+    sleep 0.25
+  done
+  die "el navegador no abrió el puerto de depuración en ${STARTUP_TIMEOUT}s"
+}
+
+log() { printf '%s\n' "$*" >&2; }
+
+# Assets de prueba: 10 s de 1080p30, en el directorio temporal.
+make_assets() {
+  local c
+  [[ "$DO_VIDEO" -eq 1 ]] && log "${C_DIM}generando clips 1080p (H.264 y VP9)...${C_RST}"
+  for c in ${CODECS//,/ }; do
+    [[ "$DO_VIDEO" -eq 1 ]] || break
+    case "$c" in
+      h264) ffmpeg -loglevel error -y -f lavfi -i testsrc2=size=1920x1080:rate=30 -t 10 \
+              -c:v libx264 -preset veryfast -profile:v high -pix_fmt yuv420p -g 60 "$WORK/h264.mp4" ;;
+      vp9) ffmpeg -loglevel error -y -f lavfi -i testsrc2=size=1920x1080:rate=30 -t 10 \
+              -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -row-mt 1 -pix_fmt yuv420p "$WORK/vp9.webm" ;;
+      *) die "códec desconocido: $c (usá h264, vp9)" ;;
+    esac
+    local ext="mp4"; [[ "$c" == "vp9" ]] && ext="webm"
+    printf '<title>bench-video</title><body style="margin:0"><video id=v src="%s.%s" autoplay muted loop style="width:100%%"></video>\n' \
+      "$c" "$ext" > "$WORK/$c.html"
+  done
+  printf '%s\n' '<title>bench-typing</title>' '<input id=t autofocus style="font-size:40px;width:90%">' \
+    '<script>window.comp=0;for(const e of ["compositionstart","compositionupdate","compositionend"])document.getElementById("t").addEventListener(e,()=>window.comp++)</script>' \
+    > "$WORK/typing.html"
+}
+
+BROWSER_VERSION="?"
+GPU_JSON="{}"
+VIDEO_JSON="{}"
+TYPING_JSON="{}"
+STABLE_JSON="{}"
+OVERALL_OK=1
+
+ensure_version() {
+  if [[ "$BROWSER_VERSION" == "?" ]]; then
+    BROWSER_VERSION="$(python3 "$SELF_DIR/lib/cdp.py" version "$PORT" | jq -r .product)"
+  fi
+}
+
+run_video() {
+  local c result url extra
+  local -a clips=()
+  read -ra clips <<< "${CODECS//,/ }"
+  [[ -z "$YOUTUBE_URL" ]] || clips+=(youtube)
+  for c in "${clips[@]}"; do
+    url="file://$WORK/$c.html"; extra=()
+    if [[ "$c" == "youtube" ]]; then
+      url="$YOUTUBE_URL"; extra=(--youtube)
+      [[ -z "$INJECT_JS" ]] || extra+=(--inject "$INJECT_JS")
+    fi
+    log "${C_CYAN}video $c${C_RST}: ${WINDOWS} ventanas de ${SECONDS_MEASURE}s tras ${WARMUP}s de calentamiento..."
+    launch_browser about:blank
+    ensure_version
+    if [[ "$GPU_JSON" == "{}" ]]; then
+      GPU_JSON="$(python3 "$PROBE" gpu --port "$PORT")"
+    fi
+    result="$(python3 "$PROBE" video --port "$PORT" --profile "$PROFILE" --url "$url" \
+      --warmup "$WARMUP" --seconds "$SECONDS_MEASURE" --windows "$WINDOWS" "${extra[@]}")" || { OVERALL_OK=0; result='{"error":"probe falló"}'; }
+    STABLE_JSON="$(python3 "$PROBE" stable --port "$PORT" 2> /dev/null || echo '{"responsive":false,"gpu_process":false}')"
+    stop_browser
+    VIDEO_JSON="$(jq -c --arg c "$c" --argjson r "$result" --argjson s "$STABLE_JSON" '. + {($c): ($r + {responsive_after: $s.responsive})}' <<< "$VIDEO_JSON")"
+  done
+}
+
+run_typing() {
+  log "${C_CYAN}escritura${C_RST}: á é ñ con wtype y con el módulo Unicode de fcitx5..."
+  launch_browser "file://$WORK/typing.html"
+  ensure_version
+  TYPING_JSON="$(python3 "$PROBE" typing --port "$PORT" --url typing.html)" || { OVERALL_OK=0; TYPING_JSON='{"error":"probe falló"}'; }
+  stop_browser
+}
+
+# Pestañas del mismo sitio (127.0.0.1) y de otro (localhost) servidas desde el directorio temporal.
+cmd_process_model() {
+  local http_port result i
+  http_port="$(free_port)"
+  mkdir -p "$WORK/site"
+  for i in 1 2 3; do printf '<title>site-%s</title><body>%s</body>\n' "$i" "$i" > "$WORK/site/p$i.html"; done
+  printf '<title>other</title><body>otro sitio</body>\n' > "$WORK/site/other.html"
+  python3 -m http.server "$http_port" --bind 127.0.0.1 --directory "$WORK/site" > /dev/null 2>&1 &
+  HTTP_PID=$!
+  curl -fs --retry 40 --retry-delay 0 --retry-connrefused "http://127.0.0.1:$http_port/p1.html" > /dev/null || die "el servidor HTTP de prueba no arrancó"
+  log "${C_CYAN}process-model${C_RST}: 3 pestañas del mismo sitio + 1 de otro, y se tumba una..."
+  launch_browser about:blank
+  ensure_version
+  result="$(python3 "$PROBE" procs --port "$PORT" --profile "$PROFILE" \
+    --site "http://127.0.0.1:$http_port" --other "http://localhost:$http_port")" || die "la sonda process-model falló"
+  stop_browser
+  stop_http
+  printf '%s\n' "${C_BOLD}== browser-flags-bench process-model: $LABEL ==${C_RST}"
+  printf 'browser : %s (%s)\n' "$BROWSER" "$BROWSER_VERSION"
+  printf 'flags   : %s\n' "${CANDIDATE[*]}"
+  jq -r '"procesos: \(.processes) renderers=\(.renderers) memoria_PSS=\(.pss_mib) MiB\ncaida   : tras tumbar 1 pestaña, sobreviven \(.others_alive_after_crash)/\(.others_total) de las demás (mismo sitio: \(.same_site_alive_after_crash)/2), navegador vivo=\(.browser_alive_after_crash)"' <<< "$result"
+}
+
+if [[ "$MODE" == "process-model" ]]; then
+  cmd_process_model
+  exit 0
+fi
+
+make_assets
+if [[ "$DO_VIDEO" -eq 1 ]]; then run_video; fi
+if [[ "$DO_TYPING" -eq 1 ]]; then run_typing; fi
+
+# --- Reporte -----------------------------------------------------------------
+REPORT="$(jq -nc \
+  --arg label "$LABEL" --arg browser "$BROWSER" --arg version "$BROWSER_VERSION" \
+  --arg flags "${CANDIDATE[*]}" --argjson gpu "$GPU_JSON" --argjson video "$VIDEO_JSON" \
+  --argjson typing "$TYPING_JSON" \
+  '{label:$label, browser:$browser, version:$version, flags:$flags, gpu:$gpu, video:$video, typing:$typing}')"
+
+human_report() {
+  printf '%s\n' "${C_BOLD}== browser-flags-bench: $LABEL ==${C_RST}"
+  printf 'browser : %s (%s)\n' "$BROWSER" "$BROWSER_VERSION"
+  printf 'flags   : %s\n' "${CANDIDATE[*]}"
+  jq -r '.gpu | "gpu     : decode=\(.video_decode // "?") | raster=\(.rasterization // "?") | compositing=\(.compositing // "?") | canvas=\(.canvas // "?")\ngl      : \(.gl_renderer // "?")"' <<< "$REPORT"
+  local c
+  local -a clips=()
+  read -ra clips <<< "${CODECS//,/ }"
+  [[ -z "$YOUTUBE_URL" ]] || clips+=(youtube)
+  for c in "${clips[@]}"; do
+    [[ "$DO_VIDEO" -eq 1 ]] || break
+    jq -r --arg c "$c" '.video[$c] | "\($c)    : decoder=\(.decoder // "?") yt=\(.youtube_codecs // "-") \(.youtube_resolution // "") listo1080=\(.youtube_ready // "-") platform_hw=\(.platform_decoder // "?") \(.codec // "?")/\(.resolution // "?") cpu_browser=\(.cpu_browser_pct_core // "?")% (mediana, de 1 núcleo; muestras \(.cpu_browser_samples // [])) cpu_sistema=\(.cpu_system_pct // "?")% frames=\(.frames_total // "?") perdidos=\(.frames_dropped // "?") (en la medición: \(.window_dropped // "?")/\(.window_frames // "?")) wayland_nativo=\(.wayland_native // "?") reproduciendo=\(.playing // "?") gpu_estable=\(.gpu_pid_stable // "?") captura=\(.screenshot_bytes // 0)B"' <<< "$REPORT"
+  done
+  if [[ "$DO_TYPING" -eq 1 ]]; then
+    jq -r '.typing | "typing  : directo(wtype)=\(.direct // "?") ok=\(.direct_ok // "?") | fcitx5-unicode=\(.fcitx5_unicode // "?") ok=\(.fcitx5_unicode_ok // "?") | eventos_composicion=\(.composition_events // "?") | ventana_enfocada=\(.window_focused // "?")"' <<< "$REPORT"
+  fi
+}
+
+verdict() {
+  local ok=1
+  if [[ "$DO_VIDEO" -eq 1 ]]; then
+    jq -e '[.video[] | (.playing == true) and (.crashed == false) and (.gpu_pid_stable == true) and (.screenshot_bytes > 50000) and (.responsive_after == true) and (.youtube_ready != false)] | all' <<< "$REPORT" > /dev/null || ok=0
+  fi
+  if [[ "$DO_TYPING" -eq 1 ]]; then
+    jq -e '(.typing.direct_ok == true) and (.typing.fcitx5_unicode_ok == true)' <<< "$REPORT" > /dev/null || ok=0
+  fi
+  [[ "$OVERALL_OK" -eq 1 && "$ok" -eq 1 ]]
+}
+
+if [[ "$JSON_OUT" -eq 1 ]]; then
+  human_report >&2
+  jq -c --argjson v "$(verdict && echo true || echo false)" '. + {stable_and_correct: $v}' <<< "$REPORT"
+else
+  human_report
+fi
+
+if verdict; then
+  log "${C_GREEN}veredicto: sesión estable y resultados correctos${C_RST}"
+else
+  log "${C_YELLOW}veredicto: hay fallas o resultados incompletos (ver arriba)${C_RST}"
+  exit 1
+fi

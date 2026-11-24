@@ -18,6 +18,7 @@ endif
 	@$(MAKE) -s --no-print-directory help-chezmoi
 	@$(MAKE) -s --no-print-directory help-packages
 	@$(MAKE) -s --no-print-directory help-lint
+	@$(MAKE) -s --no-print-directory help-browser
 	@$(MAKE) -s --no-print-directory help-doctor
 	@$(MAKE) -s --no-print-directory help-git
 	@$(MAKE) -s --no-print-directory help-daily

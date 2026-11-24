@@ -30,5 +30,6 @@ include make/daily.mk
 include make/chezmoi.mk
 include make/packages.mk
 include make/lint.mk
+include make/browser.mk
 include make/doctor.mk
 include make/git.mk
