@@ -10,7 +10,7 @@ usage() {
 # Misma cascada que .chezmoiignore.tmpl (bloque «Auto-detect profile»).
 # Vive acá porque morning tiene que decir el perfil sin renderizar la plantilla.
 rf_source() {
-  "${CHEZMOI:-chezmoi}" source-path
+  "${CHEZMOI_BIN:-chezmoi}" source-path
 }
 
 rf_profile() {
@@ -66,7 +66,7 @@ rf_paths() {
 rf_lose() {
   local source_dir paths
   source_dir="$(rf_source)"
-  paths="$("${CHEZMOI:-chezmoi}" --color=false status -S "$source_dir" | rf_paths lose)"
+  paths="$("${CHEZMOI_BIN:-chezmoi}" --color=false status -S "$source_dir" | rf_paths lose)"
   if [[ -n "$paths" ]]; then
     printf '%s\n' "$paths"
     exit 1
