@@ -59,33 +59,40 @@ pretty_slug() {
 }
 
 effort="" fast=""
-take_token() {
+canon_token() {
   local t
   t=$(tr '[:upper:]' '[:lower:]' <<<"$1")
-  t=${t//[()]/}
+  printf '%s' "${t//[^a-z0-9.]/}"
+}
+take_token() { # 0 if the word is effort or fast
+  local t
+  t=$(canon_token "$1")
   case $t in
-    none | minimal | low | medium | high | xhigh | max | thinking) effort=$t ;;
-    fast) fast=1 ;;
+    none | minimal | low | medium | high | xhigh | max | thinking) effort=$t; return 0 ;;
+    fast) fast=1; return 0 ;;
   esac
+  return 1
 }
 
 if [[ -n $served ]]; then
   base=()
   IFS=- read -ra parts <<<"$served"
   for p in "${parts[@]}"; do
-    case $p in
-      none | minimal | low | medium | high | xhigh | max | thinking | fast) take_token "$p" ;;
-      *) base+=("$p") ;;
-    esac
+    take_token "$p" || base+=("$p")
   done
   model="Auto→$(pretty_slug "$(IFS=-; echo "${base[*]}")")"
 else
-  # Named model: display_name often already includes effort ("Grok 4.6 High Fast").
+  # display_name often already includes context and effort ("Grok 4.7 256K Medium").
+  # param_summary repeats those tokens; keep each visible token once. Effort is printed later.
   leftover=()
+  seen=" "
   for w in $model $params; do
-    before=$effort$fast
-    take_token "$w"
-    [[ $effort$fast == "$before" ]] && leftover+=("$w")
+    key=$(canon_token "$w")
+    [[ -z $key ]] && continue
+    take_token "$key" && continue
+    [[ $seen == *" $key "* ]] && continue
+    seen+="$key "
+    leftover+=("$w")
   done
   ((${#leftover[@]})) && model="${leftover[*]}"
 fi
@@ -248,39 +255,22 @@ print_pace() { # full|compact
   esac
 }
 
-print_grok_usage() { # full|compact|mini
-  [[ -z $gpct ]] && return
-  local gc label
+print_grok_usage() {
+  # Same wording at every width: the old "grok 0%" read as an empty model, not used quota.
   if [[ $gavail == 0 ]]; then
-    gc=31
-    label="agotado"
-  else
-    gc=$(level_color "$gpct")
-    label="${gpct}%"
+    sep
+    put 31 "cuota grok agotada"
+    return
   fi
+  [[ -z $gpct ]] && return
+  local gc
+  gc=$(level_color "$gpct")
   sep
-  case $1 in
-    full)
-      put 90 "grok "
-      if [[ $gavail != 0 ]]; then
-        put "$gc" "$(bar "$gpct" 8) $label"
-      else
-        put "$gc" "$label"
-      fi
-      if [[ -n $greset_days ]]; then
-        if [[ $greset_days == 0 ]]; then put 90 " (hoy)"
-        elif [[ $greset_days == 1 ]]; then put 90 " (1d)"
-        else put 90 " ($greset_days d)"; fi
-      fi
-      ;;
-    compact)
-      put 90 "grok " && put "$gc" "$label"
-      [[ -n $greset_days && $greset_days != 0 ]] && put 90 " ${greset_days}d"
-      ;;
-    mini)
-      put 90 "g" && put "$gc" "$label"
-      ;;
-  esac
+  put 90 "cuota grok usada "
+  put "$gc" "${gpct}%"
+  if [[ -n $greset_days ]]; then
+    put 90 " · resetea en ${greset_days}d"
+  fi
 }
 
 print_cycle_reset() { # inline|solo — label and date never run together without ": "
@@ -321,7 +311,7 @@ usage_line() { # full|compact|mini [show_reset=1]
       [[ -n $runout ]] && put 31 " · agota el $runout"
       [[ -n $apct ]] && put 90 " · api " && put "$(level_color "$apct")" "$apct%"
       put 90 " · proy $proj"
-      print_grok_usage full
+      print_grok_usage
       [[ -n $sess ]] && sep && put 90 "sesión " && put 36 "$sess"
       ;;
     compact)
@@ -331,13 +321,13 @@ usage_line() { # full|compact|mini [show_reset=1]
       print_pace compact
       [[ -n $runout ]] && put 31 " → agota $runout"
       [[ -n $apct ]] && put 90 " api " && put "$(level_color "$apct")" "$apct%"
-      print_grok_usage compact
+      print_grok_usage
       [[ -n $sess ]] && sep && put 90 "ses " && put 36 "$sess"
       ;;
     mini)
       put 36 "$h5" && raw " " && put "$(level_color "$mpct")" "$mpct%"
       print_pace mini
-      print_grok_usage mini
+      print_grok_usage
       ;;
   esac
   if [[ -n $err ]]; then
