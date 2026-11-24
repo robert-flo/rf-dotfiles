@@ -8,6 +8,7 @@ Esta guía explica **cómo se trabaja con el `Makefile` de `rf-dotfiles`**. Si a
 
 1. **Dónde lee `chezmoi` vs. desde dónde corres `make`:**
    - Muchos comandos diarios (`morning`, `status`, `diff`, `lose`, `pull`, `safe`, `root`) operan sobre la **copia de producción que `chezmoi` lee** (`chezmoi source-path`, normalmente `/z/rf-dotfiles`).
+   - Si ese directorio no existe (usuario sin `~/.local/share/chezmoi`, p. ej. `niri-classic`), `make` usa el clon desde el que lo corres (si trae `.chezmoiignore.tmpl`) y, si no, `/z/rf-dotfiles`; lo avisa en una línea. `make apply` deja el enlace `~/.local/share/chezmoi -> /z/rf-dotfiles` solo en el perfil `clavis` y solo si en esa ruta no hay nada (nunca pisa un directorio, archivo o enlace). Se crea en `apply` y no en un `symlink_*` de chezmoi porque chezmoi no puede declarar su propia fuente: con `--force` un `symlink_` reemplazaría un clon real que alguien tenga ahí.
    - Otros comandos (`apply`, `apply-*`, `managed`, `ignored`, `verify`) usan el **directorio actual** (`-S $(CURDIR)`), pensado para probar o verificar cambios en tu clon/rama antes de llevarlos a producción.
 2. **Perfiles y `DRY_RUN=1`:**
    - El perfil activo (`clavis`, `nyxuri`, `omarchy`) se detecta automáticamente según el usuario del sistema, o puedes forzarlo con `CHEZMOI_PROFILE=<perfil>`.
@@ -31,7 +32,7 @@ Te da un tablero de solo lectura con:
 ```bash
 make status   # Resumen corto de drift (M, D, A, R)
 make diff     # Diff completo contra la copia de producción
-make lose     # Solo la lista de archivos del $HOME que se pisarían (sale != 0 si hay alguno)
+make lose     # Solo la lista de archivos del $HOME que se pisarían (sale 1 si hay alguno y 3 si chezmoi falla: no inventa una lista)
 ```
 
 ### Paso 3: Traer cambios del remoto sin tocar tu `$HOME` (`make pull`)
@@ -94,7 +95,7 @@ Puedes ver esta lista en la terminal en cualquier momento con `make help`.
 | Target | Qué hace | ¿Muta? |
 | :--- | :--- | :--- |
 | `make morning` | Tablero completo: git vs `origin/master`, perfil, `sudo`, `lose` y `scripts` | No (hace `git fetch`) |
-| `make lose` | Lista archivos del `$HOME` que `apply` pisaría; sale `1` si hay alguno | No |
+| `make lose` | Lista archivos del `$HOME` que `apply` pisaría; sale `1` si hay alguno y `3` (con el error de chezmoi) si no pudo averiguarlo; `make` lo muestra como `Error 1` / `Error 3` | No |
 | `make pull` | `git pull --rebase --autostash` en `source-path` y clon actual | Sí (`DRY_RUN=1`) |
 | `make safe` | Corre `lose` y aplica el `$HOME` solo si `lose` está vacío; nunca pasa `--force` ni exige sudo (los scripts de raíz siguen tolerantes) | Sí (`DRY_RUN=1`) |
 | `make root` | Ejecuta solo los scripts de raíz (paquetes y herramientas); no toca `$HOME` | Sí (`DRY_RUN=1`) |
