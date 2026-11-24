@@ -1,0 +1,46 @@
+# User preferences and workstation environment (managed by Chezmoi)
+
+if [[ $- == *i* && -t 1 && "$TERM" != "linux" ]] && command -v fastfetch >/dev/null 2>&1; then
+  fastfetch --logo-type kitty
+fi
+
+# Mise shims
+if typeset -f add_to_path >/dev/null 2>&1; then
+  add_to_path "{{ .chezmoi.homeDir }}/.local/share/mise/shims"
+fi
+
+# Go
+export GOPATH="{{ .chezmoi.homeDir }}/go"
+if typeset -f add_to_path >/dev/null 2>&1; then
+  add_to_path "$GOPATH/bin" append
+  add_to_path "/usr/local/go/bin" append
+fi
+
+# GitHub CLI
+export GH_EDITOR="${EDITOR:-nvim}"
+export GH_PAGER="less -FR"
+if [[ -r "{{ .chezmoi.homeDir }}/.config/git/shell_aliases" ]]; then
+  source "{{ .chezmoi.homeDir }}/.config/git/shell_aliases"
+fi
+
+# Editor, pager, Python & npm
+export MANPAGER="nvim +Man!"
+export PYTHON_BASIC_REPL=1
+export NPM_CONFIG_PREFIX="{{ .chezmoi.homeDir }}/.npm-global"
+if [[ ! -d "$NPM_CONFIG_PREFIX/bin" ]]; then
+  mkdir -p "$NPM_CONFIG_PREFIX/bin"
+fi
+if typeset -f add_to_path >/dev/null 2>&1; then
+  add_to_path "$NPM_CONFIG_PREFIX/bin"
+fi
+
+# Personal aliases
+alias fn='nvim $(fzf)'
+alias fp='zathura $(fzf)'
+alias da='direnv allow .'
+alias d='docker'
+alias lzd='lazydocker'
+alias t='tree --depth=1'
+alias tt='tree --depth=2'
+alias ttt='tree --depth=3'
+alias h='herdr'
