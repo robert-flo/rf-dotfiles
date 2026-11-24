@@ -185,25 +185,39 @@ fi
 
 have_usage=0
 usage_error=""
-total_pct="" auto_pct="" api_pct="" reset_days="" grok_pct="" grok_reset_days="" grok_available=""
+# Whole units only: Nd Nh when a day remains, Nh Nm when hours remain, otherwise Nm.
+remain_label() { # absolute epoch ms; empty if unknown
+  local ms=${1:-} left d h m
+  [[ -n $ms ]] || return 0
+  left=$((ms - now * 1000))
+  ((left < 0)) && left=0
+  d=$((left / 86400000))
+  h=$(((left % 86400000) / 3600000))
+  m=$(((left % 3600000) / 60000))
+  if ((d >= 1)); then
+    printf '%dd %dh' "$d" "$h"
+  elif ((h >= 1)); then
+    printf '%dh %dm' "$h" "$m"
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+total_pct="" auto_pct="" api_pct="" cycle_end_ms="" grok_pct="" grok_reset_ms="" grok_available=""
 if [[ -s $usage_cache ]] && jq -e '.updated' "$usage_cache" >/dev/null 2>&1; then
   have_usage=1
-  IFS=$'\x1f' read -r total_pct auto_pct api_pct reset_days grok_pct grok_reset_days grok_available < <(jq -r \
-    --argjson now "$((now * 1000))" '
-    def days($ms):
-      if $ms == null then ""
-      elif ($ms - $now) <= 0 then "0"
-      else (($ms - $now) / 86400000 | floor | tostring)
-      end;
-    [
+  IFS=$'\x1f' read -r total_pct auto_pct api_pct cycle_end_ms grok_pct grok_reset_ms grok_available < <(jq -r \
+    '[
       ((.month_pct // 0) | floor | tostring),
       (if .auto_pct == null then "" else (.auto_pct | floor | tostring) end),
       (if .api_pct == null then "" else (.api_pct | floor | tostring) end),
-      (days(.cycle_end)),
+      (if .cycle_end == null then "" else (.cycle_end | tostring) end),
       (if .grok_pct == null then "" else (.grok_pct | floor | tostring) end),
-      (days(.grok_reset_ms)),
+      (if .grok_reset_ms == null then "" else (.grok_reset_ms | tostring) end),
       (if .grok_available == null then "" elif .grok_available then "1" else "0" end)
     ] | join("\u001f")' "$usage_cache")
+  reset_in=$(remain_label "$cycle_end_ms")
+  grok_reset_in=$(remain_label "$grok_reset_ms")
 elif [[ -s $usage_cache ]]; then
   usage_error=$(jq -r '.error // empty' "$usage_cache" 2>/dev/null || true)
 fi
@@ -218,8 +232,8 @@ fi
 printf '%s\n' "$out"
 
 if ((have_usage)); then
-  cursor_line="  Cursor: ${total_pct}% usado"
-  [[ -n $reset_days ]] && cursor_line+=" · reset en ${reset_days}d"
+  cursor_line="  📅 Cursor: ${total_pct}% usado"
+  [[ -n $reset_in ]] && cursor_line+=" · reset en ${reset_in}"
   grok_txt=""
   if [[ $grok_available == 0 ]]; then
     grok_txt="agotado"
@@ -227,8 +241,8 @@ if ((have_usage)); then
     grok_txt="${grok_pct}% usado"
   fi
   if [[ -n $grok_txt ]]; then
-    [[ -n $grok_reset_days ]] && grok_txt+=" · reset en ${grok_reset_days}d"
-    cursor_line+=" | Grok Bot: ${grok_txt}"
+    [[ -n $grok_reset_in ]] && grok_txt+=" · reset en ${grok_reset_in}"
+    cursor_line+=" | 🤖 Grok Bot: ${grok_txt}"
   fi
   printf '%s\n' "$cursor_line"
   auto_txt="" api_txt=""
