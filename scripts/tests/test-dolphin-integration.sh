@@ -28,7 +28,7 @@ in_manifest() { jq -e --arg p "$1" '.packages.official | index($p) != null' "$MA
 PKGS=(archlinux-xdg-menu breeze-icons dolphin ffmpegthumbs kde-cli-tools kdegraphics-thumbnailers)
 for pkg in "${PKGS[@]}"; do
   check "$pkg está en packages.json (official)" in_manifest "$pkg"
-  others="$(cd "$REPO_ROOT" && git grep -l -w -- "\"$pkg\"" -- . ':!.chezmoidata/packages.json' ':!scripts/tests' || true)"
+  others="$(cd "$REPO_ROOT" && grep -rIl -w --exclude-dir=.git --exclude=.git --exclude-dir=tests --exclude=packages.json --exclude=AGENTS.md --exclude=40-xdg-menu.conf --exclude=run_onchange_after_03-rebuild-ksycoca.sh.tmpl -- "$pkg" . || true)"
   check "ningún otro archivo lista $pkg" [ -z "$others" ]
 done
 check "packages.json no repite paquetes" [ "$(jq -r '.packages | to_entries[] | .value[]' "$MANIFEST" | sort | uniq -d | wc -l)" -eq 0 ]
@@ -37,7 +37,11 @@ check "packages.json no repite paquetes" [ "$(jq -r '.packages | to_entries[] | 
 check "40-xdg-menu.conf fija XDG_MENU_PREFIX=arch-" grep -qx 'XDG_MENU_PREFIX=arch-' "$ENV_FILE"
 check "40-xdg-menu.conf no lleva rutas /home/<user>" [ -z "$(grep -l '/home/' "$ENV_FILE" || true)" ]
 
-managed() { CHEZMOI_PROFILE="$1" chezmoi managed --source="$REPO_ROOT" --include=files -p relative 2> /dev/null; }
+managed() { CHEZMOI_PROFILE="$1" chezmoi managed --source="$REPO_ROOT" --include=files -p relative; }
+# Sin esta precondición un chezmoi roto daría salida vacía y los negativos pasarían de más.
+for profile in clavis clavis-upstream omarchy nyxuri; do
+  check "chezmoi lista archivos gestionados en $profile" [ "$(managed "$profile" | wc -l)" -gt 10 ]
+done
 check "clavis gestiona 40-xdg-menu.conf" grep -qx '.config/environment.d/40-xdg-menu.conf' <(managed clavis)
 for profile in clavis-upstream omarchy nyxuri; do
   check "$profile no recibe 40-xdg-menu.conf" [ -z "$(managed "$profile" | grep -x '.config/environment.d/40-xdg-menu.conf' || true)" ]
@@ -49,6 +53,7 @@ for profile in clavis-upstream omarchy nyxuri; do
   check "ksycoca en $profile se renderiza vacío (chezmoi no lo ejecuta)" [ -z "$(render "$profile" | tr -d '[:space:]')" ]
 done
 rendered="$(render clavis)"
+check "ksycoca en clavis no se renderiza vacío" [ -n "$rendered" ]
 check "ksycoca en clavis empieza con shebang" [ "$(head -n 1 <<< "$rendered")" = '#!/usr/bin/env bash' ]
 check "ksycoca en clavis es bash válido" bash -n <(printf '%s\n' "$rendered")
 check "ksycoca en clavis usa el prefijo arch-" grep -q 'XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental' <<< "$rendered"
@@ -59,9 +64,10 @@ fi
 
 # --- Lo que no debe cambiar ----------------------------------------------------
 check "QT_QPA_PLATFORMTHEME sigue siendo gtk3" grep -qx 'QT_QPA_PLATFORMTHEME=gtk3' "$REPO_ROOT/dot_config/environment.d/qt-gtk3.conf"
-check "solo qt-gtk3.conf fija QT_QPA_PLATFORMTHEME" [ "$(git -C "$REPO_ROOT" grep -l 'QT_QPA_PLATFORMTHEME' -- ':!AGENTS.md' ':!scripts/tests' | wc -l)" -eq 1 ]
-check "ningún archivo versionado fija Dolphin como gestor de carpetas" \
-  [ -z "$(git -C "$REPO_ROOT" grep -l -E 'inode/directory.*dolphin|org\.kde\.dolphin\.desktop' -- ':!AGENTS.md' ':!scripts/tests' || true)" ]
+check "solo qt-gtk3.conf asigna QT_QPA_PLATFORMTHEME" \
+  [ "$(grep -rl '^QT_QPA_PLATFORMTHEME=' "$REPO_ROOT/dot_config" | wc -l)" -eq 1 ]
+check "ningún archivo de dotfiles asigna Dolphin a inode/directory" \
+  [ -z "$(grep -rIl --exclude-dir=.git -E 'inode/directory|org\.kde\.dolphin\.desktop' "$REPO_ROOT/dot_config" "$REPO_ROOT/dot_local" 2> /dev/null || true)" ]
 
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" -eq 0 ]]

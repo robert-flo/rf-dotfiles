@@ -25,6 +25,10 @@ if [[ ! -f /etc/xdg/menus/arch-applications.menu ]]; then
 fi
 
 echo "==> [chezmoi] Reconstruyendo ksycoca con XDG_MENU_PREFIX=arch- para {{ .chezmoi.username }}..."
-XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental >/dev/null 2>&1 \
-  || echo "==> [chezmoi] Aviso: kbuildsycoca6 devolvió un error; Dolphin lo reconstruye al abrir."
+rc=0
+err="$(XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental 2>&1 >/dev/null)" || rc=$?
+if [[ $rc -ne 0 ]]; then
+  # No se aborta chezmoi: bajo `sudo -u <usuario>` sin sesión kbuildsycoca6 devuelve 255.
+  echo "==> [chezmoi] Aviso: kbuildsycoca6 salió con código $rc${err:+ ($err)}; ksycoca no se reconstruyó y «Otra aplicación…» puede seguir vacío hasta reconstruirlo con: XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental"
+fi
 {{ end -}}
