@@ -1,5 +1,0 @@
-# ~/.zshrc - Managed by Chezmoi
-
-[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
-
-alias agy="$HOME/.local/bin/agy"
