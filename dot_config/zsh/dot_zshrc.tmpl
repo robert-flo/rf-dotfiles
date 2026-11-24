@@ -1,0 +1,37 @@
+#!/usr/bin/env zsh
+# Interactive Zsh configuration (managed by Chezmoi)
+
+# Helpful aliases
+alias c='clear'
+alias l='eza -lh --icons=auto'
+alias ls='eza -1 --icons=auto'
+alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
+alias ld='eza -lhD --icons=auto'
+alias lt='eza --icons=auto --tree'
+alias vc='code'
+
+# Directory navigation shortcuts
+alias ..='cd ..'
+alias ...='cd ../..'
+alias .3='cd ../../..'
+alias .4='cd ../../../..'
+alias .5='cd ../../../../..'
+
+# Always mkdir a path
+alias mkdir='mkdir -p'
+
+# Default editor
+export EDITOR="${EDITOR:-nvim}"
+
+# Source shared profile if present
+if [[ -f "{{ .chezmoi.homeDir }}/.profile" ]]; then
+  . "{{ .chezmoi.homeDir }}/.profile"
+fi
+
+# Luarocks bin path
+if typeset -f add_to_path >/dev/null 2>&1; then
+  add_to_path "$HOME/.luarocks/bin"
+fi
+
+# Deduplicate PATH entries
+export PATH="$(echo -n "$PATH" | awk -v RS=: '$0 != "" && !x[$0]++' | paste -sd:)"
