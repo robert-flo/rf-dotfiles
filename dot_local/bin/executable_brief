@@ -1,0 +1,566 @@
+#!/usr/bin/env bash
+# brief — resumen GitHub para Domina / robertOS.
+# Uso: brief [--json] [--cache] [--help]
+set -euo pipefail
+
+BRIEF_LIB="${BRIEF_LIB:-}"
+if [[ -z $BRIEF_LIB ]]; then
+  BIN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+  if [[ -f "$BIN_DIR/../lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$(cd "$BIN_DIR/../lib/brief" && pwd)/brief-common.sh"
+  elif [[ -f "${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh"
+  elif [[ -f "$HOME/.local/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$HOME/.local/lib/brief/brief-common.sh"
+  fi
+fi
+# shellcheck disable=SC1090
+source "$BRIEF_LIB"
+brief_paths
+brief_load_env
+brief_split_patterns
+
+WANT_JSON=0
+WANT_CACHE=0
+WIDTH=${GH_BRIEF_WIDTH:-120}
+((WIDTH < 72)) && WIDTH=72
+INDENT='  '
+
+usage() {
+  cat <<EOF
+uso: brief [--json] [--cache]
+  --json   misma información, JSON estable (schema_version=$BRIEF_SCHEMA_VERSION)
+  --cache  guarda pantalla en \$ROBERTOS_CACHE_DIR/brief.txt y una línea
+           JSON (con ts) en \$ROBERTOS_DATA_DIR/brief/AAAA-MM-DD.jsonl
+           (escritura atómica; el historial no se borra)
+
+Prioridad: repos Monte Tabor (robert-flo/funeraria-monte-tabor*) y
+PRIORIDAD_REPOS en ~/.config/robertos/brief.env. Ítems sin actividad
+≥ ${BRIEF_QUIET_DAYS}d se marcan en rojo como «quieto Nd».
+EOF
+  brief_help_common
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --json) WANT_JSON=1 ;;
+    --cache) WANT_CACHE=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "brief: flag desconocido: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+_table_cols() {
+  local sum=$((WIDTH - 12))
+  TW_PR=$((sum * 52 / 100))
+  TW_REPO=$((sum * 26 / 100))
+  TW_EST=$((sum - TW_PR - TW_REPO))
+}
+_table_cols
+GUM_WIDTHS="${TW_PR},${TW_REPO},${TW_EST}"
+
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+  C_DIM=$'\e[2m'; C_RED=$'\e[31m'; C_GRN=$'\e[32m'; C_YEL=$'\e[33m'; C_RST=$'\e[0m'
+else
+  C_DIM=''; C_RED=''; C_GRN=''; C_YEL=''; C_RST=''
+fi
+
+rule() { local i; for ((i = 0; i < WIDTH; i++)); do printf '─'; done; printf '\n'; }
+section() { printf '\n%s\n' "$1"; rule; }
+line() { printf '  %s\n' "$*"; }
+ok() { printf '  %s✓%s %s\n' "$C_GRN" "$C_RST" "$*"; }
+warn() { printf '  %s⚠%s  %s\n' "$C_YEL" "$C_RST" "$*"; }
+bad() { printf '  %s✗%s %s\n' "$C_RED" "$C_RST" "$*"; }
+
+# timeout por invocación de gh (default 120s). Un fallo no se convierte en [].
+BRIEF_GH_TIMEOUT=120
+if [[ -z ${ROBERTOS_BRIEF_TIMEOUT+x} ]]; then
+  :
+elif [[ ${ROBERTOS_BRIEF_TIMEOUT} =~ ^[0-9]+$ ]]; then
+  BRIEF_GH_TIMEOUT=$ROBERTOS_BRIEF_TIMEOUT
+else
+  printf 'brief: ROBERTOS_BRIEF_TIMEOUT=%s no es un número; uso 120\n' "$ROBERTOS_BRIEF_TIMEOUT" >&2
+fi
+
+HAVE_TIMEOUT=1
+if ! command -v timeout >/dev/null 2>&1; then
+  HAVE_TIMEOUT=0
+  printf 'brief: no está el binario timeout; gh corre sin límite de tiempo\n' >&2
+fi
+
+GH_FAIL_FLAG=$(mktemp)
+trap 'if ((BASH_SUBSHELL == 0)); then rm -f "$GH_FAIL_FLAG"; [[ -n ${ITEMS_RAW:-} ]] && rm -f "$ITEMS_RAW"; fi' EXIT
+
+gh_try() {
+  if [[ $BRIEF_GH_TIMEOUT == 0 ]] || ((HAVE_TIMEOUT == 0)); then
+    gh "$@"
+  else
+    timeout --kill-after=5 --signal=TERM "$BRIEF_GH_TIMEOUT" gh "$@"
+  fi
+}
+
+gh_cmd() {
+  local rc=0
+  if gh_try "$@"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  if ((rc != 0)); then
+    printf '%s\n' "$rc" >>"$GH_FAIL_FLAG"
+  fi
+  return 0
+}
+
+gh_abort_if_failed() {
+  [[ -s $GH_FAIL_FLAG ]] || return 0
+  local rc
+  rc=$(tail -n 1 "$GH_FAIL_FLAG")
+  printf 'brief: gh falló (rc=%s, timeout/auth/red/json); no se escribe caché ni jsonl\n' "$rc" >&2
+  exit "$rc"
+}
+
+gh_json() {
+  local tmp rc=0
+  tmp=$(mktemp)
+  if gh_cmd "$@" >"$tmp" 2>/dev/null; then
+    rc=0
+  else
+    rc=$?
+  fi
+  if ((rc != 0)) || [[ -s $GH_FAIL_FLAG ]]; then
+    rm -f "$tmp"
+    echo '[]'
+    return 0
+  fi
+  if ! jq -e 'type=="array"' "$tmp" >/dev/null 2>&1; then
+    printf '1\n' >>"$GH_FAIL_FLAG"
+    rm -f "$tmp"
+    echo '[]'
+    return 0
+  fi
+  cat "$tmp"
+  rm -f "$tmp"
+}
+
+sanitize_cell() {
+  local s=$1
+  s=${s//$'\n'/ }
+  s=${s//$'\r'/ }
+  s=${s//$'\t'/ }
+  s=${s//|/}
+  printf '%s' "$s"
+}
+
+brief_table_file() {
+  local cols=$1 tsv_file=$2
+  [[ -s $tsv_file ]] || return 0
+  local border=rounded
+  [[ -n ${NO_COLOR:-} ]] && border=normal
+  brief-table -c "$cols" -w "$GUM_WIDTHS" -W "$WIDTH" -b "$border" -f "$tsv_file" --indent "$INDENT"
+}
+
+emit_tsv_row() {
+  printf '%s\t%s\t%s\t%s\n' \
+    "$1" "$(sanitize_cell "$2")" "$(sanitize_cell "$3")" "$(sanitize_cell "$4")"
+}
+
+item_label() { sanitize_cell "#${1} ${2}"; }
+
+quiet_estado() {
+  local d=$1 extra=$2
+  if ((d >= BRIEF_QUIET_DAYS)); then
+    printf '%squieto %sd%s%s' "$C_RED" "$d" "$C_RST" "${extra:+, $extra}"
+  else
+    printf '%s%s' "$(brief_age_label "$3")" "${extra:+, $extra}"
+  fi
+}
+
+# ── preflight ────────────────────────────────────────────────────────────────
+need=(gh jq)
+if ((!WANT_JSON)) || ((WANT_CACHE)); then
+  need+=(brief-table)
+fi
+for bin in "${need[@]}"; do
+  command -v "$bin" >/dev/null 2>&1 || { bad "falta '$bin' en PATH"; exit 1; }
+done
+gh_cmd auth status >/dev/null 2>&1
+if [[ -s $GH_FAIL_FLAG ]]; then
+  bad "gh no está autenticado o falló (gh auth login / timeout)"
+  gh_abort_if_failed
+fi
+
+ME="?"
+tmp_me=$(mktemp)
+if gh_cmd api user --jq .login >"$tmp_me" 2>/dev/null; then
+  ME=$(cat "$tmp_me")
+  ME=${ME:-?}
+fi
+rm -f "$tmp_me"
+gh_abort_if_failed
+NOW_LABEL=$(if [[ -n ${ROBERTOS_NOW:-} ]]; then date -d "$ROBERTOS_NOW" '+%Y-%m-%d %H:%M'; else date '+%Y-%m-%d %H:%M'; fi)
+TS=$(brief_now_epoch)
+GENERATED=$(brief_generated_at)
+
+FIELDS='number,title,repository,updatedAt,url'
+FIELDS_ISSUE="${FIELDS},commentsCount"
+
+assigned=$(gh_json search issues --assignee @me --state open --limit 30 --json "$FIELDS")
+gh_abort_if_failed
+reviews=$(gh_json search prs --review-requested @me --state open --limit 30 --json "$FIELDS")
+gh_abort_if_failed
+my_prs=$(gh_json search prs --author @me --state open --sort updated --limit 30 --json "$FIELDS")
+gh_abort_if_failed
+my_issues=$(gh_json search issues --author @me --state open --sort updated --limit 10 --json "$FIELDS_ISSUE")
+gh_abort_if_failed
+
+# Resolver globs contra repos del usuario (una sola lista).
+resolve_priority_repos() {
+  local need_list=0 pat r
+  PRIORITY_REPOS_RESOLVED=()
+  for pat in "${BRIEF_PATTERNS[@]}"; do
+    if [[ $pat == *[\*\?]* ]]; then
+      need_list=1
+    else
+      PRIORITY_REPOS_RESOLVED+=("$pat")
+    fi
+  done
+  if ((need_list)); then
+    local all
+    all=$(gh_json repo list --limit 200 --json nameWithOwner)
+    gh_abort_if_failed
+    while IFS= read -r r; do
+      [[ -z $r || $r == null ]] && continue
+      if brief_repo_is_priority "$r"; then
+        PRIORITY_REPOS_RESOLVED+=("$r")
+      fi
+    done < <(jq -r 'if type=="array" then .[].nameWithOwner else empty end' <<<"$all")
+  fi
+  # unique
+  if ((${#PRIORITY_REPOS_RESOLVED[@]})); then
+    mapfile -t PRIORITY_REPOS_RESOLVED < <(printf '%s\n' "${PRIORITY_REPOS_RESOLVED[@]}" | awk 'NF && !seen[$0]++')
+  fi
+}
+
+resolve_priority_repos
+
+mt_prs='[]'
+mt_issues='[]'
+if ((${#PRIORITY_REPOS_RESOLVED[@]})); then
+  q=""
+  for r in "${PRIORITY_REPOS_RESOLVED[@]}"; do
+    q+=" repo:${r}"
+  done
+  q=${q# }
+  mt_prs=$(gh_json search prs --state open --limit 50 --json "$FIELDS" -- "$q")
+  gh_abort_if_failed
+  mt_issues=$(gh_json search issues --state open --limit 50 --json "$FIELDS_ISSUE" -- "is:issue ${q}")
+  gh_abort_if_failed
+fi
+
+ITEMS_RAW=$(mktemp)
+
+ingest() {
+  local json=$1 kind=$2 role=$3
+  jq -c --arg kind "$kind" --arg role "$role" '
+    if type != "array" then empty else
+      .[] | select(.repository.nameWithOwner != null) | {
+        kind: $kind,
+        roles: [$role],
+        repo: .repository.nameWithOwner,
+        number: .number,
+        title: (.title // ""),
+        url: (.url // ""),
+        updated_at: .updatedAt,
+        comments: (.commentsCount // 0),
+        draft: (.isDraft // false),
+        mergeable: null
+      }
+    end
+  ' <<<"$json" >>"$ITEMS_RAW" || true
+}
+
+ingest "$assigned" issue assigned
+ingest "$reviews" pr review
+ingest "$my_prs" pr author_pr
+ingest "$my_issues" issue author_issue
+ingest "$mt_prs" pr priority_search
+ingest "$mt_issues" issue priority_search
+
+# Enriquecer PRs propios con mergeable/draft (una vista por ítem).
+enrich_author_prs() {
+  local item repo num extra mergeable draft
+  local tmp
+  tmp=$(mktemp)
+  while IFS= read -r item; do
+    [[ -z $item ]] && continue
+    if [[ $(jq -r '.kind' <<<"$item") == pr && $(jq -r '.roles | index("author_pr")' <<<"$item") != null ]]; then
+      repo=$(jq -r .repo <<<"$item")
+      num=$(jq -r .number <<<"$item")
+      if extra=$(gh_try pr view "$num" -R "$repo" --json mergeable,isDraft \
+        --jq '[.mergeable, (.isDraft | tostring)] | @tsv' 2>/dev/null) && [[ -n $extra ]]; then
+        read -r mergeable draft <<<"$extra"
+        case ${mergeable:-} in
+          MERGEABLE|CONFLICTING|UNKNOWN) ;;
+          *) mergeable=UNKNOWN ;;
+        esac
+      else
+        printf 'brief: aviso: falló gh pr view %s#%s; estado UNKNOWN\n' "$repo" "$num" >&2
+        mergeable=UNKNOWN
+        draft=false
+      fi
+      item=$(jq -c --arg m "${mergeable:-UNKNOWN}" --arg d "${draft:-false}" \
+        '.mergeable=$m | .draft=($d=="true")' <<<"$item")
+    fi
+    printf '%s\n' "$item"
+  done <"$ITEMS_RAW" >"$tmp"
+  mv -f "$tmp" "$ITEMS_RAW"
+}
+if [[ -s $ITEMS_RAW ]]; then
+  enrich_author_prs
+fi
+
+# Merge por id, flags quiet/priority, days_idle.
+DOC_ITEMS=$(
+  if [[ ! -s $ITEMS_RAW ]]; then
+    echo '[]'
+  else
+    jq -s '
+      def id: "\(.repo)#\(.number)";
+      group_by(id) | map(
+        (map(.roles) | add | unique) as $roles |
+        (map(.mergeable) | map(select(. != null)) | .[0] // null) as $m |
+        (any(.[]; .draft == true)) as $d |
+        .[0] + {
+          roles: $roles,
+          mergeable: $m,
+          draft: $d,
+          id: (.[0] | id)
+        }
+      )
+    ' "$ITEMS_RAW"
+  fi
+)
+
+# days_idle y flags en bash (jq sin fromdateiso8601 en 1.6).
+DOC_ITEMS=$(
+  jq -c '.[]' <<<"$DOC_ITEMS" | while IFS= read -r item; do
+    [[ -z $item ]] && continue
+    upd=$(jq -r .updated_at <<<"$item")
+    d=0
+    if [[ $upd != null && -n $upd ]]; then
+      d=$(brief_days_since "$upd")
+    fi
+    repo=$(jq -r .repo <<<"$item")
+    p=false
+    if brief_repo_is_priority "$repo"; then p=true; fi
+    q=false
+    ((d >= BRIEF_QUIET_DAYS)) && q=true
+    jq -c --argjson d "$d" --argjson p "$p" --argjson q "$q" \
+      '.days_idle=$d | .priority=$p | .quiet=$q' <<<"$item"
+  done | jq -s '.'
+)
+
+PRIORITIES=$(
+  jq -c --argjson quiet "$BRIEF_QUIET_DAYS" '
+    [.[] | select(.priority or .quiet)]
+    | sort_by(
+        (if .priority and .quiet then 0 elif .priority then 1 elif .quiet then 2 else 3 end),
+        -(.days_idle // 0)
+      )
+    | .[:5]
+    | to_entries
+    | map(
+        .key as $i | .value as $v |
+        ($v.repo | split("/")[-1]) as $short |
+        {
+          rank: ($i+1),
+          id: $v.id,
+          repo: $v.repo,
+          number: $v.number,
+          reason: (if $v.priority and $v.quiet then "quiet_priority"
+                   elif $v.priority then "priority"
+                   else "quiet" end),
+          text: (
+            if $v.priority and $v.quiet then
+              "Monte Tabor · \($short)#\($v.number) quieto \($v.days_idle)d"
+            elif $v.priority then
+              "Monte Tabor · \($short)#\($v.number) \($v.kind)"
+            else
+              "\($short)#\($v.number) quieto \($v.days_idle)d"
+            end
+          )
+        }
+      )
+  ' <<<"$DOC_ITEMS"
+)
+
+n_assigned=$(jq 'length' <<<"$assigned" 2>/dev/null || echo 0)
+n_reviews=$(jq 'length' <<<"$reviews" 2>/dev/null || echo 0)
+n_prs=$(jq 'length' <<<"$my_prs" 2>/dev/null || echo 0)
+n_issues=$(jq 'length' <<<"$my_issues" 2>/dev/null || echo 0)
+n_quiet=$(jq '[.[] | select(.quiet)] | length' <<<"$DOC_ITEMS")
+n_prio=$(jq '[.[] | select(.priority)] | length' <<<"$DOC_ITEMS")
+
+PAT_JSON=$(printf '%s\n' "${BRIEF_PATTERNS[@]}" | jq -R . | jq -s .)
+
+DOC=$(jq -n \
+  --argjson schema "$BRIEF_SCHEMA_VERSION" \
+  --arg generated "$GENERATED" \
+  --argjson ts "$TS" \
+  --arg user "$ME" \
+  --argjson quiet_days "$BRIEF_QUIET_DAYS" \
+  --argjson patterns "$PAT_JSON" \
+  --argjson assigned "$n_assigned" \
+  --argjson reviews "$n_reviews" \
+  --argjson my_prs "$n_prs" \
+  --argjson my_issues "$n_issues" \
+  --argjson quiet "$n_quiet" \
+  --argjson priority "$n_prio" \
+  --argjson items "$DOC_ITEMS" \
+  --argjson priorities "$PRIORITIES" \
+  '{
+    schema_version: $schema,
+    generated_at: $generated,
+    ts: $ts,
+    user: $user,
+    quiet_days: $quiet_days,
+    priority_patterns: $patterns,
+    summary: {
+      assigned: $assigned,
+      reviews: $reviews,
+      my_prs: $my_prs,
+      my_issues: $my_issues,
+      quiet: $quiet,
+      priority: $priority
+    },
+    items: $items,
+    priorities: $priorities
+  }')
+
+render_table_from() {
+  local filter=$1 headers=$2
+  local _tsv item repo num title url short d extra estado
+  _tsv=$(mktemp)
+  while IFS= read -r item; do
+    [[ -z $item ]] && continue
+    repo=$(jq -r .repo <<<"$item")
+    num=$(jq -r .number <<<"$item")
+    title=$(jq -r .title <<<"$item")
+    url=$(jq -r .url <<<"$item")
+    short=$(brief_short_repo "$repo")
+    d=$(jq -r .days_idle <<<"$item")
+    extra=""
+    kind=$(jq -r .kind <<<"$item")
+    if [[ $kind == pr ]]; then
+      local mergeable draft st
+      mergeable=$(jq -r '.mergeable // empty' <<<"$item")
+      draft=$(jq -r '.draft' <<<"$item")
+      st=OPEN
+      if [[ $draft == true ]]; then st+=', draft'
+      elif [[ $mergeable == MERGEABLE ]]; then st+=', mergeable'
+      elif [[ $mergeable == CONFLICTING ]]; then st+=', conflictos'
+      elif [[ $mergeable == UNKNOWN ]]; then st+=', UNKNOWN'; fi
+      extra=$st
+    else
+      extra=$(jq -r '.comments // 0' <<<"$item")
+    fi
+    estado=$(quiet_estado "$d" "$extra" "$(jq -r .updated_at <<<"$item")")
+    emit_tsv_row "$(item_label "$num" "$title")" "$short" "$estado" "$url" >>"$_tsv"
+  done < <(jq -c "$filter" <<<"$DOC_ITEMS")
+  brief_table_file "$headers" "$_tsv"
+  rm -f "$_tsv"
+}
+
+render_screen() {
+  printf '\n📊 robertOS · github overview\n'
+  rule
+  line "${C_DIM}👤 ${ME} · ${NOW_LABEL}${C_RST}"
+
+  section "📌 Resumen"
+  if ((n_assigned == 0 && n_reviews == 0)); then
+    ok "0 issues asignados · 0 reviews pendientes"
+  else
+    warn "${n_assigned} issues asignados · ${n_reviews} reviews pendientes"
+  fi
+  line "• ${n_prs} PRs abiertos (tuyos) · ${n_issues} issues abiertos (autoría tuya)"
+  line "• ${n_prio} en prioridad (Monte Tabor) · ${n_quiet} quietos (≥${BRIEF_QUIET_DAYS}d)"
+
+  section "🎯 Prioridades de hoy"
+  local npri
+  npri=$(jq 'length' <<<"$PRIORITIES")
+  if ((npri == 0)); then
+    ok "nada urgente"
+  else
+    jq -r '.[] | "  \(.rank). \(.text)"' <<<"$PRIORITIES"
+  fi
+
+  local n_mt
+  n_mt=$(jq '[.[] | select(.priority)] | length' <<<"$DOC_ITEMS")
+  section "🏔 Monte Tabor ($n_mt)"
+  if ((n_mt == 0)); then
+    ok "sin ítems abiertos en repos de prioridad"
+  else
+    render_table_from '.[] | select(.priority)' "Ítem,Repo,Estado" pr
+  fi
+
+  local nq
+  nq=$(jq '[.[] | select(.quiet and (.priority|not))] | length' <<<"$DOC_ITEMS")
+  if ((nq > 0)); then
+    section "💤 Quietos fuera de prioridad ($nq)"
+    render_table_from '.[] | select(.quiet and (.priority|not))' "Ítem,Repo,Estado" issue
+  fi
+
+  if ((n_assigned > 0)); then
+    section "📥 Asignados a ti ($n_assigned)"
+    render_table_from '.[] | select(.roles | index("assigned"))' "Issue,Repo,Estado" issue
+  fi
+  if ((n_reviews > 0)); then
+    section "👀 Reviews pendientes ($n_reviews)"
+    render_table_from '.[] | select(.roles | index("review"))' "PR,Repo,Estado" pr
+  fi
+
+  section "🔀 PRs abiertos (tuyos) ($n_prs)"
+  if ((n_prs == 0)); then
+    ok "ninguno"
+  else
+    render_table_from '.[] | select(.roles | index("author_pr"))' "PR,Repo,Estado" pr
+  fi
+
+  section "🐛 Issues abiertos (autoría tuya) ($n_issues)"
+  if ((n_issues == 0)); then
+    ok "ninguno"
+  else
+    render_table_from '.[] | select(.roles | index("author_issue"))' "Issue,Repo,Actividad" issue
+  fi
+
+  if [[ -n ${ROBERTOS_MEMORY_CMD:-${NIXFRED_MEMORY_CMD:-}} ]]; then
+    section "🧠 Memory"
+    while IFS= read -r l; do line "$l"; done < <(bash -c "${ROBERTOS_MEMORY_CMD:-$NIXFRED_MEMORY_CMD}" 2>&1)
+  fi
+
+  printf '\n  %s✓ done%s\n' "$C_GRN" "$C_RST"
+  printf '\n📋 Quick Actions:\n'
+  rule
+  line "• refrescar:  brief · brief --cache · brief --json"
+  line "• tendencias: brief-trend"
+  line "• sesión:     brief-session"
+}
+
+SCREEN_OUT=""
+if ((WANT_CACHE)) || ! ((WANT_JSON)); then
+  SCREEN_OUT=$(render_screen)
+fi
+
+if ((WANT_CACHE)); then
+  printf '%s\n' "$SCREEN_OUT" | brief_atomic_write "$BRIEF_CACHE_TXT"
+  hist="$BRIEF_HISTORY_DIR/$(brief_today).jsonl"
+  brief_atomic_append_line "$hist" "$(jq -c . <<<"$DOC")"
+fi
+
+if ((WANT_JSON)); then
+  jq -c . <<<"$DOC"
+else
+  printf '%s\n' "$SCREEN_OUT"
+fi
