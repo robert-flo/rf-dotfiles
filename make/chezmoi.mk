@@ -2,7 +2,7 @@
 # 🏠 CHEZMOI - Profile-aware dotfile lifecycle & verification
 # ════════════════════════════════════════════════════════════════════════════════
 
-CHEZMOI ?= chezmoi
+CHEZMOI_BIN ?= chezmoi
 CHEZMOI_PROFILES ?= clavis nyxuri omarchy
 
 .PHONY: help-chezmoi status diff apply apply-clavis apply-nyxuri apply-omarchy managed ignored verify
@@ -11,8 +11,8 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "\n"
 	@printf "$(CYAN)Chezmoi Lifecycle$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
-	@printf "  $(GREEN)make status$(NC)               Show pending dotfile changes (-S repo)\n"
-	@printf "  $(GREEN)make diff$(NC)                 Show full diff against \$$HOME (-S repo)\n"
+	@printf "  $(GREEN)make status$(NC)               Show pending changes against the chezmoi source copy\n"
+	@printf "  $(GREEN)make diff$(NC)                 Show full diff against the chezmoi source copy\n"
 	@printf "  $(GREEN)make apply$(NC)                Apply dotfiles for current user (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make apply-clavis$(NC)         Apply with CHEZMOI_PROFILE=clavis (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make apply-nyxuri$(NC)         Apply with CHEZMOI_PROFILE=nyxuri (DRY_RUN=1)\n"
@@ -21,13 +21,13 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "  $(GREEN)make ignored$(NC)              List ignored paths for active profile\n"
 	@printf "  $(GREEN)make verify$(NC)               Verify templates and Makefile/make/* exclusion\n"
 
-status: ## Show chezmoi status using repo as source
+status: ## Show chezmoi status using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
-	@printf "$(CYAN)📊 status · chezmoi drift (-S $(CURDIR))$(NC)\n"
+	@printf "$(CYAN)📊 status · chezmoi drift (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) status -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) status -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -36,13 +36,13 @@ ifndef EMBEDDED
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n\n"
 endif
 
-diff: ## Show chezmoi diff using repo as source
+diff: ## Show chezmoi diff using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
-	@printf "$(CYAN)🔄 diff · chezmoi changes (-S $(CURDIR))$(NC)\n"
+	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) --no-pager diff -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) --no-pager diff -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -57,7 +57,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🚀 apply · chezmoi apply (-S $(CURDIR))$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) apply -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) apply -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -72,7 +72,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🚀 apply-$* · chezmoi apply (CHEZMOI_PROFILE=$*)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) env CHEZMOI_PROFILE="$*" $(CHEZMOI) apply -S "$(CURDIR)"
+	@$(EXEC) env CHEZMOI_PROFILE="$*" $(CHEZMOI_BIN) apply -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -87,7 +87,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)📂 managed · tracked paths (-S $(CURDIR))$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) managed -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) managed -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -102,7 +102,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🚫 ignored · excluded paths (-S $(CURDIR))$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) ignored -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) ignored -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -119,13 +119,13 @@ ifndef EMBEDDED
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
-		printf "  ▶ [dry-run] $(CHEZMOI) execute-template -S $(CURDIR) < $(CURDIR)/.chezmoiignore.tmpl\n"; \
+		printf "  ▶ [dry-run] $(CHEZMOI_BIN) execute-template -S $(CURDIR) < $(CURDIR)/.chezmoiignore.tmpl\n"; \
 		printf "  ▶ [dry-run] check Makefile and make/* excluded for profiles: $(CHEZMOI_PROFILES)\n"; \
 	else \
 		for p in $(CHEZMOI_PROFILES); do \
-			CHEZMOI_PROFILE="$$p" $(CHEZMOI) execute-template -S "$(CURDIR)" < "$(CURDIR)/.chezmoiignore.tmpl" > /dev/null; \
-			MANAGED=$$(CHEZMOI_PROFILE="$$p" $(CHEZMOI) managed -S "$(CURDIR)"); \
-			IGNORED=$$(CHEZMOI_PROFILE="$$p" $(CHEZMOI) ignored -S "$(CURDIR)"); \
+			CHEZMOI_PROFILE="$$p" $(CHEZMOI_BIN) execute-template -S "$(CURDIR)" < "$(CURDIR)/.chezmoiignore.tmpl" > /dev/null; \
+			MANAGED=$$(CHEZMOI_PROFILE="$$p" $(CHEZMOI_BIN) managed -S "$(CURDIR)"); \
+			IGNORED=$$(CHEZMOI_PROFILE="$$p" $(CHEZMOI_BIN) ignored -S "$(CURDIR)"); \
 			if printf '%s\n' "$$MANAGED" | grep -Eq '^(Makefile|make/)'; then \
 				printf "$(RED)  ✗ Makefile or make/* leaked into managed paths for profile=$$p$(NC)\n"; \
 				exit 1; \

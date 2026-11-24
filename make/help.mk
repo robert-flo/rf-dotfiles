@@ -21,6 +21,7 @@ endif
 	@$(MAKE) -s --no-print-directory help-browser
 	@$(MAKE) -s --no-print-directory help-doctor
 	@$(MAKE) -s --no-print-directory help-git
+	@$(MAKE) -s --no-print-directory help-daily
 ifndef EMBEDDED
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
