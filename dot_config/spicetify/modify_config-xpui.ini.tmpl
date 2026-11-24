@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Preservar secciones [Patch] y [Backup] si existen en stdin (evita deriva en chezmoi diff)
+extra_sections="$(
+  awk '
+    /^\[(Patch|Backup)\][[:space:]]*$/ { in_extra = 1; lines[++n] = $0; next }
+    in_extra && /^\[/ { in_extra = 0 }
+    in_extra { lines[++n] = $0 }
+    END {
+      while (n > 0 && lines[n] ~ /^[[:space:]]*$/) { n-- }
+      for (i = 1; i <= n; i++) print lines[i]
+    }
+  '
+)"
+
+cat <<'EOF'
+[Setting]
+spotify_path           = /opt/spotify
+current_theme          = Sleek
+inject_theme_js        = 1
+inject_css             = 1
+replace_colors         = 1
+spotify_launch_flags   = --ozone-platform=wayland
+check_spicetify_update = 1
+prefs_path             = {{ .chezmoi.homeDir }}/.config/spotify/prefs
+color_scheme           = Catppuccin
+overwrite_assets       = 0
+always_enable_devtools = 0
+
+[Preprocesses]
+disable_sentry     = 1
+disable_ui_logging = 1
+remove_rtl_rule    = 1
+expose_apis        = 1
+
+[AdditionalOptions]
+sidebar_config        = 0
+home_config           = 1
+experimental_features = 1
+extensions            = adblock.js
+custom_apps           = 
+EOF
+
+if [[ -n "$extra_sections" ]]; then
+  printf '\n%s\n' "$extra_sections"
+fi
