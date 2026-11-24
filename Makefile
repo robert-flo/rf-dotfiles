@@ -31,3 +31,4 @@ include make/packages.mk
 include make/lint.mk
 include make/doctor.mk
 include make/git.mk
+include make/daily.mk
