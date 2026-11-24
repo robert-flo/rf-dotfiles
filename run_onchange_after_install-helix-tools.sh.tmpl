@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_install-helix-tools.sh.tmpl
+# Instala/actualiza oxfmt vía mise. oxfmt es un paquete npm: mise necesita node
+# instalado de antemano. /etc/mise/conf.d/omarchy-tools.toml fija locked_scopes
+# [project, global], así que en un usuario nuevo mise no resuelve node@latest por
+# su cuenta y `mise use -g oxfmt@latest` muere con «while offline».
+# Con RF_APPLY_FULL=1 (make apply*) un fallo real termina con exit != 0; con
+# chezmoi directo solo avisa y sale 0.
+# ==============================================================================
 set -euo pipefail
 
 echo "==> [chezmoi] Instalando/actualizando oxfmt vía mise para {{ .chezmoi.username }}..."
@@ -8,9 +17,28 @@ if ! command -v mise >/dev/null 2>&1; then
   exit 0
 fi
 
+# $1 = qué falló, $2 = código de salida de mise
+fail_or_warn() {
+  if [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+    echo "==> [chezmoi] ERROR: apply completo (make apply*): $1 (código $2)." >&2
+    exit 1
+  fi
+  echo "==> [chezmoi] Aviso: $1 (código $2); omitiendo para no bloquear chezmoi."
+  exit 0
+}
+
+# Prerrequisito: node. `mise where` no toca la red; solo se instala si falta.
+if ! mise where node@latest >/dev/null 2>&1; then
+  echo "==> [chezmoi] Instalando node (prerrequisito de oxfmt)..."
+  status=0
+  mise install --quiet node@latest || status=$?
+  if [[ $status -ne 0 ]]; then
+    fail_or_warn "falló la instalación de node vía mise, prerrequisito de oxfmt" "$status"
+  fi
+fi
+
 status=0
 mise use -g --quiet oxfmt@latest || status=$?
-
 if [[ $status -ne 0 ]]; then
-  echo "==> [chezmoi] Aviso: falló la instalación de oxfmt vía mise (código $status); omitiendo para no bloquear chezmoi."
+  fail_or_warn "falló la instalación de oxfmt vía mise" "$status"
 fi
