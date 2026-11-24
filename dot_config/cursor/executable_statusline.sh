@@ -177,6 +177,7 @@ if ((now - mtime > 60)); then
 fi
 
 have_usage=0
+usage_error=""
 if [[ -s $usage_cache ]] && jq -e '.updated' "$usage_cache" >/dev/null 2>&1; then
   have_usage=1
   IFS=$'\x1f' read -r h5 h5req h1 sess mpct apct pace runout proj reset reset_days age err gpct greset_days gavail < <(jq -r \
@@ -212,6 +213,8 @@ if [[ -s $usage_cache ]] && jq -e '.updated' "$usage_cache" >/dev/null 2>&1; the
          else ((.grok_reset_ms - $now) / 86400000 | floor | tostring) end),
         (if .grok_available == null then "" elif .grok_available then "1" else "0" end)
       ] | join("\u001f")' "$usage_cache")
+elif [[ -s $usage_cache ]]; then
+  usage_error=$(jq -r '.error // empty' "$usage_cache" 2>/dev/null || true)
 fi
 
 pace_color() {
@@ -300,7 +303,11 @@ usage_line() { # full|compact|mini [show_reset=1]
   local show_reset=${2:-1}
   out="" plain=""
   if ((!have_usage)); then
-    put 90 "uso: cargando…"
+    if [[ -n $usage_error ]]; then
+      put 31 "uso: $usage_error"
+    else
+      put 90 "uso: cargando…"
+    fi
     return
   fi
   local ahead=""
