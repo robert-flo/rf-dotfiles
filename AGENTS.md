@@ -65,7 +65,7 @@ Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
   - `--load-extension`: **descartado**. Chrome de marca 158 (estable y Beta) lo ignora; Chromium 155 sí lo carga.
   - Depuración remota sobre el perfil por defecto: bloqueada por Chrome de marca; por eso el perfil dedicado.
   - Inyección CDP por `--remote-debugging-pipe` (sin puerto TCP) con `Page.addScriptToEvaluateOnNewDocument`: **elegido**; sin extensión ni cambios en `/`.
-  - Medido con `scripts/browser-flags-bench -u <YouTube> [-i h264only.js]` (1080p60, tres ventanas, mediana): AV1 por software (Dav1d) 98–126 % de un núcleo y 62–68 % de CPU del sistema; con H.264 (`VaapiVideoDecoder`) 39–53 % y 49–52 %. Los frames perdidos dependen de la carga puntual de la máquina (0 a ~240 en ambos casos), no del códec.
+  - Medido con `scripts/browser-flags-bench -u <YouTube> [-i h264only.js]` (1080p60, tres ventanas, mediana): VP9 por software (`VpxVideoDecoder`) 106–127 % de un núcleo y 40–53 % de CPU del sistema; AV1 por software (Dav1d) 98–126 % y 62–68 %; con H.264 (`VaapiVideoDecoder`) 39–53 % y 49–52 %. Los frames perdidos dependen de la carga puntual de la máquina (0 a ~300 en los tres casos), no del códec.
 
 ### 3. Perfil Omarchy (`rollo`, `omarchy-test`, `omarchy`)
 Archivos de la experiencia Hyprland bajo Omarchy Quattro (4.6):

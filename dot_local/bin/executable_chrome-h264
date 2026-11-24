@@ -7,7 +7,7 @@ a 1080p60). Este lanzador abre Chrome estable en un perfil propio y, antes de qu
 cargue cada página, inyecta ~/.local/share/chrome-h264/h264only.js, que oculta
 VP9/AV1 y deja a YouTube con H.264 (≈40-50 %).
 
-Por qué así: Chrome de marca 150+ ignora --load-extension, y la depuración remota
+Por qué así: Chrome de marca (158) ignora --load-extension, y la depuración remota
 está bloqueada sobre el perfil por defecto. Se usa --remote-debugging-pipe (sin
 puerto TCP) con un user-data-dir dedicado.
 
@@ -128,16 +128,23 @@ def launch(args, extra):
         *(["--autoplay-policy=no-user-gesture-required"] if args.autoplay else []),
         *extra,
     ]
+    proc = None
+
+    def forward(sig, _frame):
+        if proc:
+            proc.send_signal(sig)
+
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, forward)
     proc = subprocess.Popen(cmd, preexec_fn=into_fds, close_fds=False)
     os.close(to_chrome_r)
     os.close(from_chrome_w)
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, lambda s, _f: proc.send_signal(s))
     try:
         serve(Pipe(from_chrome_r, to_chrome_w), source, args.verbose)
-    except (OSError, ValueError) as exc:
-        log(f"se perdió el canal con Chrome: {exc}")
-    return proc.wait()
+    except (OSError, ValueError, KeyError) as exc:
+        log(f"AVISO: se perdió el canal con Chrome ({exc}); las páginas nuevas ya no llevan la inyección")
+    code = proc.wait()
+    return 128 - code if code < 0 else code
 
 
 def clean():

@@ -89,8 +89,8 @@ check "no inyecta en el service worker" [ "$out" = "${out/addScriptToEvaluateOnN
 
 # Orden: en cada sesión, el script va antes de reanudar.
 for s in S1 S3; do
-  inj="$(grep -n "addScriptToEvaluateOnNewDocument $s" "$LOG" | head -1 | cut -d: -f1)"
-  res="$(grep -n "Runtime.runIfWaitingForDebugger $s" "$LOG" | head -1 | cut -d: -f1)"
+  inj="$(grep -n "addScriptToEvaluateOnNewDocument $s" "$LOG" | head -1 | cut -d: -f1 || true)"
+  res="$(grep -n "Runtime.runIfWaitingForDebugger $s" "$LOG" | head -1 | cut -d: -f1 || true)"
   check "$s: inyecta" [ -n "$inj" ]; check "$s: reanuda después" [ "${inj:-99}" -lt "${res:-0}" ]
 done
 check "reanuda el worker sin inyectar" grep -q "Runtime.runIfWaitingForDebugger S2" "$LOG"
