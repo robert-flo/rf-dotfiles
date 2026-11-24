@@ -21,14 +21,18 @@ rf_is_source() {
 }
 
 # La fuente que chezmoi lee. Primero lo que declara `chezmoi source-path` si existe
-# (en niri, ~/.local/share/chezmoi -> /z/rf-dotfiles). En un usuario sin ese enlace
-# (niri-classic) ese directorio no existe y todo fallaba: se cae al repo desde el que
-# se corre make y, después, a la copia central. Si nada sirve, error claro.
+# (en niri, ~/.local/share/chezmoi -> la copia central). Se devuelve la ruta canónica
+# (readlink -f): un run_onchange que incluye .chezmoi.sourceDir cambia de hash si -S
+# es el enlace y el apply se hizo por la ruta real, y status lo lista como R.
+# En un usuario sin ese enlace (niri-classic) ese directorio no existe y todo fallaba:
+# se cae al repo desde el que se corre make y, después, a la copia central. Esos
+# fallbacks no se canonicalizan: make apply usa el directorio tal cual se invocó.
+# Si nada sirve, error claro.
 rf_source() {
   local declared="" candidate
   declared="$("${CHEZMOI_BIN:-chezmoi}" source-path 2>/dev/null)" || declared=""
   if [[ -n "$declared" && -d "$declared" ]]; then
-    printf '%s\n' "$declared"
+    printf '%s\n' "$(readlink -f -- "$declared")"
     return 0
   fi
   for candidate in "$PWD" "$RF_CENTRAL_SOURCE"; do
