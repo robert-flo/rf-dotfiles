@@ -26,3 +26,4 @@ BOLD   := \033[1m
 NC     := \033[0m
 
 include make/help.mk
+include make/chezmoi.mk

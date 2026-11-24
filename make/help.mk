@@ -15,11 +15,13 @@ ifndef EMBEDDED
 	@printf "  $(DIM)Set DRY_RUN=1 to preview mutating targets without changing \$$HOME.$(NC)\n"
 endif
 	@$(MAKE) -s --no-print-directory help-general
+	@$(MAKE) -s --no-print-directory help-chezmoi
 ifndef EMBEDDED
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
-	@printf "  • show this menu:       $(BLUE)make help$(NC)\n"
-	@printf "  • dry-run convention:   $(DIM)make <target> DRY_RUN=1$(NC)\n\n"
+	@printf "  • check dotfile drift:  $(BLUE)make status$(NC)\n"
+	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n"
+	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
 
 help-general: ## Show general targets
