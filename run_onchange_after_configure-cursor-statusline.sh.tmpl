@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_configure-cursor-statusline.sh.tmpl
+# Configura statusline en Cursor cli-config.json
+# executable_statusline.sh hash: {{ include "dot_config/cursor/executable_statusline.sh" | sha256sum }}
+# ==============================================================================
+set -euo pipefail
+
+CURSOR_CONFIG_DIR="{{ .chezmoi.homeDir }}/.config/cursor"
+CONFIG_FILE="$CURSOR_CONFIG_DIR/cli-config.json"
+DOT_CURSOR_DIR="{{ .chezmoi.homeDir }}/.cursor"
+STATUSLINE_SCRIPT="{{ .chezmoi.homeDir }}/.config/cursor/statusline.sh"
+
+echo "==> [chezmoi] Configurando Cursor statusline para {{ .chezmoi.username }}..."
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> [chezmoi] Error: jq no está disponible para actualizar $CONFIG_FILE." >&2
+  exit 1
+fi
+
+mkdir -p "$CURSOR_CONFIG_DIR"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "{}" > "$CONFIG_FILE"
+fi
+
+if ! jq empty "$CONFIG_FILE" >/dev/null 2>&1; then
+  echo "==> [chezmoi] Aviso: $CONFIG_FILE no es JSON válido. Inicializando como {}..."
+  echo "{}" > "$CONFIG_FILE"
+fi
+
+tmp_file=$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")
+jq --arg cmd "$STATUSLINE_SCRIPT" '.statusLine = { "type": "command", "command": $cmd }' "$CONFIG_FILE" > "$tmp_file"
+mv "$tmp_file" "$CONFIG_FILE"
+chmod 644 "$CONFIG_FILE"
+
+if [[ -d "$DOT_CURSOR_DIR" ]]; then
+  if [[ ! -e "$DOT_CURSOR_DIR/cli-config.json" && ! -L "$DOT_CURSOR_DIR/cli-config.json" ]]; then
+    echo "==> [chezmoi] Creando symlink defensivo en $DOT_CURSOR_DIR/cli-config.json..."
+    ln -s -r "$CONFIG_FILE" "$DOT_CURSOR_DIR/cli-config.json"
+  elif [[ -L "$DOT_CURSOR_DIR/cli-config.json" && ! -e "$DOT_CURSOR_DIR/cli-config.json" ]]; then
+    echo "==> [chezmoi] Reparando symlink roto en $DOT_CURSOR_DIR/cli-config.json..."
+    ln -s -f -r "$CONFIG_FILE" "$DOT_CURSOR_DIR/cli-config.json"
+  fi
+fi
+
+echo "==> [chezmoi] Cursor statusline configurado exitosamente en $CONFIG_FILE."
