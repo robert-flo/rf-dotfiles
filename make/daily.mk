@@ -73,10 +73,31 @@ ifndef EMBEDDED
 	@printf "$(CYAN)⚠️  lose · archivos del home que un apply pisaría$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(DAILY_SH) lose
-ifndef EMBEDDED
-	@printf "\n$(GREEN)  ✓ nada que perder$(NC)\n"
-endif
+	@set -euo pipefail; \
+	show=$(if $(EMBEDDED),0,1); \
+	set +e; \
+	$(DAILY_SH) lose; \
+	code=$$?; \
+	set -e; \
+	if [ "$$code" -eq 0 ]; then \
+		if [ "$$show" -eq 1 ]; then \
+			printf "\n$(GREEN)  ✓ nada que perder$(NC)\n"; \
+			printf "\n$(YELLOW)📋 Qué hacer ahora:$(NC)\n"; \
+			printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"; \
+			printf "  • aplicar cambios al home: $(BLUE)make safe$(NC)\n\n"; \
+		fi; \
+	elif [ "$$code" -eq 1 ]; then \
+		if [ "$$show" -eq 1 ]; then \
+			printf "\n$(YELLOW)  ⚠ estos archivos en \$$HOME tienen cambios locales que un apply pisaría$(NC)\n"; \
+			printf "\n$(YELLOW)📋 Qué hacer ahora:$(NC)\n"; \
+			printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"; \
+			printf "  1. Ver qué cambió exactamente:        $(BLUE)make diff$(NC)\n"; \
+			printf "  2. Conservar tus cambios en el repo:  $(BLUE)chezmoi re-add <archivo>$(NC)\n"; \
+			printf "  3. Descartar cambios locales:         $(BLUE)make apply$(NC) $(DIM)(o make apply DRY_RUN=1 para previsualizar)$(NC)\n\n"; \
+		fi; \
+	else \
+		exit "$$code"; \
+	fi
 
 pull: ## Pull origin/master into the chezmoi source and the invoking clone
 ifndef EMBEDDED

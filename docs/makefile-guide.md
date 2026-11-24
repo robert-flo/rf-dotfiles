@@ -32,7 +32,7 @@ Te da un tablero de solo lectura con:
 ```bash
 make status   # Resumen corto de drift (M, D, A, R)
 make diff     # Diff completo contra la copia de producción
-make lose     # Solo la lista de archivos del $HOME que se pisarían (sale 1 si hay alguno y 3 si chezmoi falla: no inventa una lista)
+make lose     # Lista los archivos del $HOME que se pisarían y dice qué hacer. Sale 0; si chezmoi falla, sale con error y no inventa una lista
 ```
 
 ### Paso 3: Traer cambios del remoto sin tocar tu `$HOME` (`make pull`)
@@ -95,7 +95,7 @@ Puedes ver esta lista en la terminal en cualquier momento con `make help`.
 | Target | Qué hace | ¿Muta? |
 | :--- | :--- | :--- |
 | `make morning` | Tablero completo: git vs `origin/master`, perfil, `sudo`, `lose` y `scripts` | No (hace `git fetch`) |
-| `make lose` | Lista archivos del `$HOME` que `apply` pisaría; sale `1` si hay alguno y `3` (con el error de chezmoi) si no pudo averiguarlo; `make` lo muestra como `Error 1` / `Error 3` | No |
+| `make lose` | Lista archivos del `$HOME` que `apply` pisaría y dice qué hacer: `make safe` si no hay, o `make diff` / `chezmoi re-add` / `make apply` si los hay. Sale 0 (sin `Error 1`); si chezmoi falla, sale con error y no inventa una lista. `make safe` sigue mirando el código del script (1 = hay archivos) | No |
 | `make pull` | `git pull --rebase --autostash` en `source-path` y clon actual | Sí (`DRY_RUN=1`) |
 | `make safe` | Corre `lose` y aplica el `$HOME` solo si `lose` está vacío; nunca pasa `--force` ni exige sudo (los scripts de raíz siguen tolerantes) | Sí (`DRY_RUN=1`) |
 | `make root` | Ejecuta solo los scripts de raíz (paquetes y herramientas); no toca `$HOME` | Sí (`DRY_RUN=1`) |
