@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # run_onchange_after_configure-agy-statusline.sh.tmpl
-# Inyecta statusLine en ~/.gemini/antigravity-cli/settings.json
+# Inyecta statusLine y colorScheme por defecto ("dark") en ~/.gemini/antigravity-cli/settings.json
 # executable_statusline.sh hash: {{ include "dot_config/agy/executable_statusline.sh" | sha256sum }}
 # ==============================================================================
 set -euo pipefail
@@ -22,7 +22,7 @@ mkdir -p "$CONFIG_DIR"
 tmp_file=$(mktemp "${CONFIG_DIR}/settings.json.tmp.XXXXXX")
 if [[ ! -f $CONFIG_FILE ]]; then
   jq -n --arg cmd "$STATUSLINE_SCRIPT" \
-    '{statusLine: {type: "command", command: $cmd, stack_with_default: false}}' >"$tmp_file"
+    '{statusLine: {type: "command", command: $cmd, stack_with_default: false}, colorScheme: "dark"}' >"$tmp_file"
 else
   if ! jq empty "$CONFIG_FILE" >/dev/null 2>&1; then
     echo "==> [chezmoi] Error: $CONFIG_FILE no es JSON válido. No se reescribe." >&2
@@ -30,7 +30,7 @@ else
     exit 1
   fi
   jq --arg cmd "$STATUSLINE_SCRIPT" \
-    '.statusLine = {type: "command", command: $cmd, stack_with_default: false}' \
+    '.statusLine = {type: "command", command: $cmd, stack_with_default: false} | .colorScheme //= "dark"' \
     "$CONFIG_FILE" >"$tmp_file"
   chmod --reference="$CONFIG_FILE" "$tmp_file"
 fi
