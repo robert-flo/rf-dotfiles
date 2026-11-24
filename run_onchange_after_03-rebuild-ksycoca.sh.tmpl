@@ -1,0 +1,30 @@
+{{- $profile := env "CHEZMOI_PROFILE" }}
+{{- if not $profile }}
+{{-   if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") }}
+{{-     $profile = "clavis" }}
+{{-   end }}
+{{- end }}
+
+{{- if eq $profile "clavis" -}}
+#!/usr/bin/env bash
+# Reconstruye el caché de servicios de KDE (ksycoca) con el menú de archlinux-xdg-menu.
+# Un caché creado antes de instalar el menú no lo incluye y «Abrir con → Otra aplicación» de
+# Dolphin quedaría vacío; un perfil sin caché previo lo construye bien por su cuenta.
+# xdg-menu hash: {{ include "dot_config/environment.d/40-xdg-menu.conf" | sha256sum }}
+# packages.json hash: {{ include ".chezmoidata/packages.json" | sha256sum }}
+set -euo pipefail
+
+if ! command -v kbuildsycoca6 >/dev/null 2>&1; then
+  echo "==> [chezmoi] Omitiendo ksycoca (kbuildsycoca6 no está instalado)."
+  exit 0
+fi
+
+if [[ ! -f /etc/xdg/menus/arch-applications.menu ]]; then
+  echo "==> [chezmoi] Omitiendo ksycoca (falta /etc/xdg/menus/arch-applications.menu: archlinux-xdg-menu)."
+  exit 0
+fi
+
+echo "==> [chezmoi] Reconstruyendo ksycoca con XDG_MENU_PREFIX=arch- para {{ .chezmoi.username }}..."
+XDG_MENU_PREFIX=arch- kbuildsycoca6 --noincremental >/dev/null 2>&1 \
+  || echo "==> [chezmoi] Aviso: kbuildsycoca6 devolvió un error; Dolphin lo reconstruye al abrir."
+{{ end -}}
