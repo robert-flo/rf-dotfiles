@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = spotify
+
+[Action]
+Description = Restoring write permissions on /opt/spotify for Spicetify...
+When = PostTransaction
+Exec = /usr/bin/bash -c 'chmod a+wr /opt/spotify && chmod -R a+wr /opt/spotify/Apps'

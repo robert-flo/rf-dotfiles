@@ -8,6 +8,7 @@
 # yt-video hash: {{ include "scripts/yt-video" | sha256sum }}
 # yt-video-playlist hash: {{ include "scripts/yt-video-playlist" | sha256sum }}
 # yt-x hash: {{ include "scripts/yt-x" | sha256sum }}
+# spicetify-permissions.hook hash: {{ include "scripts/spicetify-permissions.hook" | sha256sum }}
 # ==============================================================================
 set -euo pipefail
 
@@ -33,3 +34,4 @@ $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-video" /usr/local/
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-video-playlist" /usr/local/bin/yt-video-playlist
 $SUDO_CMD install -Dm755 "{{ .chezmoi.sourceDir }}/scripts/yt-x" /usr/local/bin/yt-x
 $SUDO_CMD rm -f /usr/local/bin/yt-playlist
+$SUDO_CMD install -Dm644 "{{ .chezmoi.sourceDir }}/scripts/spicetify-permissions.hook" /etc/pacman.d/hooks/spicetify-permissions.hook
