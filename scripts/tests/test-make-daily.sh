@@ -91,11 +91,11 @@ write_fake_chezmoi() {
   cat > "$bin/chezmoi" << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "${CHEZMOI_LOG:?}"
+printf 'profile=%s args=%s\n' "${CHEZMOI_PROFILE-}" "$*" >> "${CHEZMOI_LOG:?}"
 cmd=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --color=*|--no-pager) shift ;;
+    --color=*|--no-pager|--file) shift ;;
     -S) shift 2 ;;
     *) cmd="$1"; shift; break ;;
   esac
@@ -108,7 +108,11 @@ case "$cmd" in
     fi
     ;;
   diff) printf 'DIFF\n' ;;
-  apply) printf 'apply\n' >> "${CHEZMOI_ACTIONS:?}" ;;
+  apply)
+    printf 'apply\n' >> "${CHEZMOI_ACTIONS:?}"
+    printf 'apply-profile=%s\n' "${CHEZMOI_PROFILE-}" >> "${CHEZMOI_ACTIONS:?}"
+    ;;
+  execute-template) printf 'true\n' ;;
   *) ;;
 esac
 EOF
@@ -237,5 +241,77 @@ diff_log="$(cat "$CHEZMOI_LOG")"
 assert_contains "$diff_log" "diff" "diff invoca chezmoi diff"
 assert_contains "$diff_log" "-S $tmp/prod" "diff usa la copia de producción"
 assert_not_contains "$diff_log" "-S $tmp/invoker" "diff no usa el directorio invocador"
+
+# --- safe ---
+cat > "$tmp/status.txt" << 'EOF'
+MM .config/clavis/ui-preferences.json
+ D .config/zed/settings.json
+A  .config/fish/config.fish
+ R run_onchange_after_02-install-system-tools.sh
+EOF
+: > "$CHEZMOI_ACTIONS"
+set +e
+out="$(CHEZMOI_PROFILE=clavis run_make "$tmp/invoker" safe)"
+code=$?
+set -e
+assert_ne "0" "$code" "safe sale distinto de cero si hay archivos que perder"
+assert_contains "$out" ".config/clavis/ui-preferences.json" "safe imprime la lista de lose"
+assert_contains "$out" ".config/zed/settings.json" "safe imprime settings de zed"
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "safe no llama apply si hay algo que perder"
+
+: > "$tmp/status.txt"
+: > "$CHEZMOI_ACTIONS"
+: > "$CHEZMOI_LOG"
+DRY_RUN=1 run_make "$tmp/invoker" safe >/dev/null
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "DRY_RUN safe no llama apply"
+
+: > "$CHEZMOI_ACTIONS"
+: > "$CHEZMOI_LOG"
+set +e
+out="$(
+  unset CHEZMOI_PROFILE
+  run_make "$tmp/invoker" safe
+)"
+code=$?
+set -e
+assert_eq "0" "$code" "safe aplica cuando el status está vacío"
+assert_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "safe llama apply con status vacío"
+assert_contains "$(cat "$CHEZMOI_ACTIONS")" "apply-profile=clavis" "safe aplica con el perfil resuelto de niri"
+assert_contains "$(cat "$CHEZMOI_LOG")" "-S $tmp/prod" "safe usa la copia de producción como source"
+assert_not_contains "$(cat "$CHEZMOI_LOG")" "-S $tmp/invoker" "safe no aplica desde el directorio invocador"
+
+# --- root ---
+packages_tmpl="run_onchange_before_01-install-packages.sh.tmpl"
+tools_tmpl="run_onchange_after_02-install-system-tools.sh.tmpl"
+write_fake_sudo "$tmp/bin" 1
+: > "$CHEZMOI_LOG"
+: > "$CHEZMOI_ACTIONS"
+set +e
+out="$(run_make "$tmp/invoker" root)"
+code=$?
+set -e
+assert_ne "0" "$code" "root sale distinto de cero si no hay sudo -n"
+assert_contains "$out" "sudo: no" "root dice que sudo -n no está"
+assert_contains "$out" "no instalada" "root no pretende que la raíz quedó instalada"
+assert_not_contains "$(cat "$CHEZMOI_LOG")" "execute-template" "sin sudo, root no dispara scripts"
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "sin sudo, root no aplica el home"
+
+write_fake_sudo "$tmp/bin" 0
+: > "$CHEZMOI_LOG"
+: > "$CHEZMOI_ACTIONS"
+out="$(DRY_RUN=1 run_make "$tmp/invoker" root)"
+assert_contains "$out" "$packages_tmpl" "DRY_RUN root imprime el script de paquetes"
+assert_contains "$out" "$tools_tmpl" "DRY_RUN root imprime el script de herramientas"
+assert_not_contains "$(cat "$CHEZMOI_LOG")" "execute-template" "DRY_RUN root no ejecuta los scripts"
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "DRY_RUN root no aplica el home"
+
+: > "$CHEZMOI_LOG"
+: > "$CHEZMOI_ACTIONS"
+run_make "$tmp/invoker" root >/dev/null
+root_log="$(cat "$CHEZMOI_LOG")"
+assert_contains "$root_log" "execute-template" "root dispara execute-template"
+assert_contains "$root_log" "$tmp/prod/$packages_tmpl" "root dispara el script de paquetes de la copia de producción"
+assert_contains "$root_log" "$tmp/prod/$tools_tmpl" "root dispara el script de herramientas y el hook"
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "root no aplica el árbol del home"
 
 finish
