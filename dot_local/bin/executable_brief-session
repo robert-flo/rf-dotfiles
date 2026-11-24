@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# brief-session — texto corto para hook session-start. Nunca red en el hilo.
+# Exit 0 siempre. Avisos a stderr. Máximo 600 bytes UTF-8 a stdout.
+set +e
+set -u
+trap 'exit 0' EXIT
+
+BRIEF_LIB="${BRIEF_LIB:-}"
+if [[ -z $BRIEF_LIB ]]; then
+  BIN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+  if [[ -f "$BIN_DIR/../lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$(cd "$BIN_DIR/../lib/brief" && pwd)/brief-common.sh"
+  elif [[ -f "${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh"
+  elif [[ -f "$HOME/.local/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$HOME/.local/lib/brief/brief-common.sh"
+  fi
+fi
+# shellcheck disable=SC1090
+source "$BRIEF_LIB"
+brief_paths
+brief_load_env
+brief_split_patterns
+
+WARN() { printf 'brief-session: %s\n' "$*" >&2; }
+
+release_stale_lock() {
+  local lock=$1
+  [[ -d $lock ]] || return 0
+  local mt age
+  mt=$(brief_file_mtime "$lock")
+  # reloj real: el lock no sigue ROBERTOS_NOW (ese es el reloj de GitHub)
+  age=$(( $(date +%s) - mt ))
+  if ((age > BRIEF_LOCK_MAX_AGE_SEC)); then
+    rmdir "$lock" 2>/dev/null || true
+  fi
+}
+
+# setsid en un subshell: el trap corre al terminar (sin exec). Lock = mkdir.
+refresh_bg() {
+  local lock=$ROBERTOS_CACHE_DIR/brief.refresh.lock
+  mkdir -p "$ROBERTOS_CACHE_DIR"
+  release_stale_lock "$lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    return 0
+  fi
+  local -a cmd=()
+  if [[ -n ${ROBERTOS_BRIEF_REFRESH_CMD:-} ]]; then
+    cmd=("$ROBERTOS_BRIEF_REFRESH_CMD")
+  elif command -v brief >/dev/null 2>&1; then
+    cmd=(brief --cache)
+  else
+    cmd=("$ROOT/bin/brief" --cache)
+  fi
+
+  if command -v setsid >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
+    setsid bash -c '
+      lock=$1
+      shift
+      trap '\''rmdir -- "$lock" 2>/dev/null || true'\'' EXIT
+      "$@"
+    ' bash "$lock" "${cmd[@]}" </dev/null >/dev/null 2>&1 &
+  else
+    (
+      trap 'rmdir -- "$lock" 2>/dev/null || true' EXIT
+      "${cmd[@]}"
+    ) </dev/null >/dev/null 2>&1 &
+  fi
+}
+
+cache_age() {
+  local mt=0
+  if [[ -f $BRIEF_CACHE_TXT ]]; then
+    mt=$(brief_file_mtime "$BRIEF_CACHE_TXT")
+  else
+    local latest
+    latest=$(find "$BRIEF_HISTORY_DIR" -maxdepth 1 -name '*.jsonl' 2>/dev/null | sort | tail -n 1 || true)
+    if [[ -n ${latest:-} ]]; then
+      mt=$(brief_file_mtime "$latest")
+    fi
+  fi
+  if [[ $mt -eq 0 ]]; then
+    echo 999999
+    return
+  fi
+  echo $(( $(brief_now_epoch) - mt ))
+}
+
+latest_doc() {
+  local f d today start
+  today=$(brief_today)
+  start=$(date -d "$today - 14 days" +%F)
+  d=$today
+  while [[ $d > $start || $d == "$start" ]]; do
+    f="$BRIEF_HISTORY_DIR/${d}.jsonl"
+    if [[ -f $f ]]; then
+      tail -n 1 "$f"
+      return 0
+    fi
+    d=$(date -d "$d - 1 day" +%F)
+  done
+  return 1
+}
+
+age=$(cache_age)
+if ((age > BRIEF_CACHE_MAX_AGE_SEC)); then
+  WARN "caché ${age}s (>${BRIEF_CACHE_MAX_AGE_SEC}s); brief --cache en segundo plano"
+  refresh_bg
+fi
+
+doc=$(latest_doc || true)
+if [[ -z ${doc:-} ]]; then
+  WARN "sin historial; nada que inyectar"
+  exit 0
+fi
+
+foco=$(jq -r '
+  [.items // [] | .[] | select(.priority)]
+  | sort_by((if .quiet then 0 else 1 end), -.days_idle)
+  | .[:3]
+  | if length==0 then "MT: sin ítems abiertos"
+    else "MT: " + ([.[] | ((.repo|split("/")[-1])+"#"+(.number|tostring) + (if .quiet then " quieto "+(.days_idle|tostring)+"d" else "" end))] | join(" · "))
+    end
+' <<<"$doc" 2>/dev/null || echo "MT: ?")
+
+quietos=$(jq -r '
+  [.items // [] | .[] | select(.quiet)]
+  | sort_by(-.days_idle)
+  | .[:4]
+  | if length==0 then "Quietos: 0"
+    else "Quietos: " + ([.[] | ((.repo|split("/")[-1])+"#"+(.number|tostring)+" "+(.days_idle|tostring)+"d")] | join(", "))
+    end
+' <<<"$doc" 2>/dev/null || echo "Quietos: ?")
+
+trend=""
+if command -v brief-trend >/dev/null 2>&1; then
+  trend=$(brief-trend --days 7 2>/dev/null | head -n 2 | paste -sd ' | ' - || true)
+elif [[ -x $ROOT/bin/brief-trend ]]; then
+  trend=$("$ROOT/bin/brief-trend" --days 7 2>/dev/null | head -n 2 | paste -sd ' | ' - || true)
+fi
+[[ -n $trend ]] && trend="Trend: $trend"
+
+format_cache_age() {
+  local sec=$1
+  ((sec < 0)) && sec=0
+  local mins=$((sec / 60))
+  if ((sec >= 3600)); then
+    printf 'hace %d min (%dh)' "$mins" "$((sec / 3600))"
+  else
+    printf 'hace %d min' "$mins"
+  fi
+}
+
+age_label=$(format_cache_age "$age")
+{
+  printf '%s\n' "$foco"
+  printf '%s\n' "$quietos"
+  printf 'caché: %s\n' "$age_label"
+  [[ -n ${trend:-} ]] && printf '%s\n' "$trend"
+} | brief_strip_ansi | brief_utf8_max_bytes "$BRIEF_SESSION_MAX_BYTES"
+exit 0

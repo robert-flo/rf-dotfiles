@@ -1,0 +1,11 @@
+[Unit]
+Description=robertOS GitHub brief cache hourly 07:00-22:00 local + boot
+
+[Timer]
+OnBootSec=1min
+OnCalendar=*-*-* 07..22:00:00
+Persistent=true
+Unit=brief.service
+
+[Install]
+WantedBy=timers.target

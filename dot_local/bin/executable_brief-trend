@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# brief-trend — 3–5 líneas de tendencia desde el historial jsonl (sin red).
+set -euo pipefail
+
+BRIEF_LIB="${BRIEF_LIB:-}"
+if [[ -z $BRIEF_LIB ]]; then
+  BIN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+  if [[ -f "$BIN_DIR/../lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$(cd "$BIN_DIR/../lib/brief" && pwd)/brief-common.sh"
+  elif [[ -f "${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="${XDG_DATA_HOME:-$HOME/.local}/lib/brief/brief-common.sh"
+  elif [[ -f "$HOME/.local/lib/brief/brief-common.sh" ]]; then
+    BRIEF_LIB="$HOME/.local/lib/brief/brief-common.sh"
+  fi
+fi
+# shellcheck disable=SC1090
+source "$BRIEF_LIB"
+brief_paths
+brief_load_env
+brief_split_patterns
+
+WANT_JSON=0
+DAYS=7
+
+usage() {
+  cat <<EOF
+uso: brief-trend [--json] [--days N]
+Lee \$ROBERTOS_DATA_DIR/brief/AAAA-MM-DD.jsonl de los últimos N días
+(default 7) y compara con los N anteriores.
+EOF
+  brief_help_common
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --json) WANT_JSON=1 ;;
+    --days)
+      shift
+      DAYS=${1:?}
+      ;;
+    --days=*) DAYS=${1#*=} ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "brief-trend: flag desconocido: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+command -v jq >/dev/null 2>&1 || { echo "brief-trend: falta jq" >&2; exit 1; }
+
+today=$(brief_today)
+start_cur=$(date -d "$today - $((DAYS - 1)) days" +%F)
+end_prev=$(date -d "$start_cur - 1 day" +%F)
+start_prev=$(date -d "$end_prev - $((DAYS - 1)) days" +%F)
+
+collect_window() {
+  local from=$1 to=$2 f d last=""
+  d=$from
+  while [[ $d < $to || $d == "$to" ]]; do
+    f="$BRIEF_HISTORY_DIR/${d}.jsonl"
+    if [[ -f $f ]]; then
+      last=$(tail -n 1 "$f" || true)
+    fi
+    d=$(date -d "$d + 1 day" +%F)
+  done
+  if [[ -n $last ]]; then
+    printf '%s' "$last"
+  else
+    printf ''
+  fi
+}
+
+cur=$(collect_window "$start_cur" "$today")
+prev=$(collect_window "$start_prev" "$end_prev")
+
+if [[ -z $cur ]]; then
+  lines_json='["sin historial de brief en la ventana actual"]'
+  if ((WANT_JSON)); then
+    jq -n --argjson schema "$BRIEF_SCHEMA_VERSION" --argjson days "$DAYS" --argjson lines "$lines_json" \
+      '{schema_version:$schema, days:$days, lines:$lines, monte_tabor:null, quiet:[], new_items:[], gone:[]}'
+  else
+    printf '%s\n' "sin historial de brief en la ventana actual"
+  fi
+  exit 0
+fi
+
+mt_prs_count() {
+  jq '[.items // [] | .[] | select(.priority and .kind=="pr")] | length' <<<"$1" 2>/dev/null || echo 0
+}
+
+quiet_list() {
+  jq -c '[.items // [] | .[] | select(.quiet) | {id, repo, number, days_idle, title, kind, priority}] | sort_by(-.days_idle)' <<<"$1"
+}
+
+cur_mt=$(mt_prs_count "$cur")
+prev_mt=null
+gone='[]'
+new_items='[]'
+if [[ -n $prev ]]; then
+  prev_mt=$(mt_prs_count "$prev")
+  gone=$(jq -n --argjson cur "$cur" --argjson prev "$prev" '
+    ($prev.items // []) as $p | ($cur.items // []) as $c |
+    ($c | map(.id)) as $cid |
+    [$p[] | select(.id as $i | ($cid | index($i) | not))] |
+    map({id, repo, number, kind, priority, title})
+  ')
+  new_items=$(jq -n --argjson cur "$cur" --argjson prev "$prev" '
+    ($prev.items // []) as $p | ($cur.items // []) as $c |
+    ($p | map(.id)) as $pid |
+    [$c[] | select(.id as $i | ($pid | index($i) | not))] |
+    map({id, repo, number, kind, priority, title})
+  ')
+fi
+
+quiet=$(quiet_list "$cur")
+gone_mt=$(jq '[.[] | select(.priority and .kind=="pr")] | length' <<<"$gone")
+new_mt=$(jq '[.[] | select(.priority)] | length' <<<"$new_items")
+n_quiet=$(jq 'length' <<<"$quiet")
+
+line_mt="Monte Tabor: ${cur_mt} PRs abiertos"
+if [[ $prev_mt != null ]]; then
+  line_mt+=", antes ${prev_mt}; ${gone_mt} cerrados/merged vs ventana previa"
+else
+  line_mt+=" (sin ventana previa)"
+fi
+
+line_q="Quietos: ninguno"
+if ((n_quiet > 0)); then
+  line_q="Quietos: $(jq -r '[.[:5] | .[] | ((.repo|split("/")[-1])+"#"+(.number|tostring)+" "+(.days_idle|tostring)+"d")] | join("; ")' <<<"$quiet")"
+fi
+
+line_new="Nuevo: nada respecto a la ventana previa"
+if [[ $prev_mt != null ]]; then
+  local_new=$(jq 'length' <<<"$new_items")
+  if ((local_new > 0)); then
+    line_new="Nuevo: $(jq -r '[.[:4] | .[] | ((.repo|split("/")[-1])+"#"+(.number|tostring))] | join(", ")' <<<"$new_items")"
+  else
+    line_new="Nuevo: 0 ítems vs ventana previa"
+  fi
+fi
+
+line_extra=""
+if [[ $prev_mt != null && $new_mt -gt 0 ]]; then
+  line_extra="Monte Tabor nuevos: ${new_mt}"
+fi
+
+LINES=("$line_mt" "$line_q" "$line_new")
+[[ -n $line_extra ]] && LINES+=("$line_extra")
+n_cur_items=$(jq '[.items // [] | .[]] | length' <<<"$cur")
+LINES+=("Snapshot: ${n_cur_items} ítems abiertos · $(jq -r .generated_at <<<"$cur")")
+
+# cap 5
+LINES=("${LINES[@]:0:5}")
+
+lines_json=$(printf '%s\n' "${LINES[@]}" | jq -R . | jq -s .)
+
+if ((WANT_JSON)); then
+  jq -n \
+    --argjson schema "$BRIEF_SCHEMA_VERSION" \
+    --argjson days "$DAYS" \
+    --arg window_cur "$start_cur/$today" \
+    --arg window_prev "$start_prev/$end_prev" \
+    --argjson mt_now "$cur_mt" \
+    --argjson mt_prev "${prev_mt:-null}" \
+    --argjson gone "$gone" \
+    --argjson new_items "$new_items" \
+    --argjson quiet "$quiet" \
+    --argjson lines "$lines_json" \
+    '{
+      schema_version:$schema,
+      days:$days,
+      window_current:$window_cur,
+      window_previous:$window_prev,
+      monte_tabor:{open_prs_now:$mt_now, open_prs_prev:$mt_prev},
+      gone:$gone,
+      new_items:$new_items,
+      quiet:$quiet,
+      lines:$lines
+    }'
+else
+  printf '%s\n' "${LINES[@]}"
+fi
