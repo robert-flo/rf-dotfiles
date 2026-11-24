@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# electron-flags-bench — Prueba flags de VS Code, Antigravity IDE, el Electron del
+# sistema y Spotify a través de su wrapper REAL, en un perfil temporal.
+#
+# Cómo funciona: crea un XDG_CONFIG_HOME temporal con el archivo de flags que lee
+# cada wrapper (code-flags.conf, antigravity-ide-flags.conf, electron-flags.conf,
+# spotify-flags.conf), lanza el wrapper de /usr/bin y mide en la app viva:
+#   - flags: cuáles aparecen de verdad en los argumentos del proceso principal
+#            (prueba de que el wrapper lee el archivo)
+#   - wayland: si la ventana es cliente Wayland nativo (niri) o XWayland
+#   - typing: escritura de á é ñ (wtype y módulo Unicode de fcitx5), con eventos de composición
+#   - cpu: CPU del árbol de procesos (mediana de ventanas); --load añade una animación sintética
+#
+# Nunca toca los perfiles diarios (todo cae en un directorio temporal que se borra al salir).
+# OJO: abre ventanas reales de la app en la pantalla (~30 s por corrida).
+# ==============================================================================
+set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROBE="$SELF_DIR/lib/electron_probe.py"
+
+usage() {
+  cat << 'EOF'
+electron-flags-bench — evidencia por configuración de flags de apps Electron/CEF
+
+Uso:
+  electron-flags-bench -a APP [opciones]
+
+  -a, --app APP         code | antigravity-ide | electron | spotify
+  -f, --flags-file ARCH Archivo de flags (un flag por línea, # comenta)
+  -F, --flag FLAG       Flag extra (repetible)
+  -l, --label NOMBRE    Etiqueta en el reporte
+      --no-env-hint     Quita ELECTRON_OZONE_PLATFORM_HINT del entorno (prueba que la variable de sesión basta)
+      --typing          Mide la escritura de á é ñ (code, antigravity-ide, electron)
+      --cpu             Mide el CPU del árbol de procesos
+      --load            Con --cpu, añade una animación sintética a la ventana
+  -s, --seconds N       Segundos por ventana de CPU (default: 8)
+  -n, --windows N       Ventanas de CPU; se reporta la mediana (default: 3)
+      --json            JSON por stdout (el reporte legible va a stderr)
+  -h, --help            Esta ayuda
+
+Sin --typing ni --cpu solo comprueba flags leídos y cliente Wayland.
+Requiere python3, wtype, niri, curl y jq. Abre ventanas reales en la pantalla.
+ELECTRON_BENCH_WRAPPER=RUTA usa otro ejecutable en lugar del wrapper de /usr/bin (pruebas con una app falsa).
+EOF
+}
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+log() { printf '%s\n' "$*" >&2; }
+
+APP="" FLAGS_FILE="" LABEL="" NO_ENV_HINT=0 DO_TYPING=0 DO_CPU=0 LOAD=0 SECONDS_MEASURE=8 WINDOWS=3 JSON_OUT=0
+FLAGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -a|--app) [[ $# -ge 2 ]] || die "$1 requiere un valor"; APP="$2"; shift 2 ;;
+    -f|--flags-file) [[ $# -ge 2 ]] || die "$1 requiere un valor"; FLAGS_FILE="$2"; shift 2 ;;
+    -F|--flag) [[ $# -ge 2 ]] || die "$1 requiere un valor"; FLAGS+=("$2"); shift 2 ;;
+    -l|--label) [[ $# -ge 2 ]] || die "$1 requiere un valor"; LABEL="$2"; shift 2 ;;
+    --no-env-hint) NO_ENV_HINT=1; shift ;;
+    --typing) DO_TYPING=1; shift ;;
+    --cpu) DO_CPU=1; shift ;;
+    --load) LOAD=1; shift ;;
+    -s|--seconds) [[ $# -ge 2 ]] || die "$1 requiere un valor"; SECONDS_MEASURE="$2"; shift 2 ;;
+    -n|--windows) [[ $# -ge 2 ]] || die "$1 requiere un valor"; WINDOWS="$2"; shift 2 ;;
+    --json) JSON_OUT=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "opción desconocida: $1" ;;
+  esac
+done
+
+[[ -n "$APP" ]] || { usage >&2; die "falta -a/--app"; }
+[[ "$SECONDS_MEASURE" =~ ^[0-9]+$ && "$WINDOWS" =~ ^[1-9][0-9]*$ ]] || die "--seconds y --windows deben ser enteros (windows >= 1)"
+[[ -z "$FLAGS_FILE" || -f "$FLAGS_FILE" ]] || die "no existe el archivo de flags: $FLAGS_FILE"
+
+# app -> wrapper real, archivo de flags que lee, pista de título de ventana
+case "$APP" in
+  code) WRAPPER=/usr/bin/code; CONF=code-flags.conf; TITLE=typing.txt ;;
+  antigravity-ide) WRAPPER=/usr/bin/antigravity-ide; CONF=antigravity-ide-flags.conf; TITLE=typing.txt ;;
+  electron) WRAPPER=/usr/bin/electron; CONF=electron-flags.conf; TITLE=bench-typing ;;
+  spotify) WRAPPER=/usr/bin/spotify; CONF=spotify-flags.conf; TITLE=Spotify ;;
+  *) die "app desconocida: $APP (usá code, antigravity-ide, electron o spotify)" ;;
+esac
+WRAPPER="${ELECTRON_BENCH_WRAPPER:-$WRAPPER}" # solo para las pruebas con una app falsa
+[[ -x "$WRAPPER" ]] || die "no está instalado el wrapper: $WRAPPER"
+[[ "$DO_TYPING" -eq 0 || "$APP" != spotify ]] || die "--typing no aplica a spotify"
+[[ "$LOAD" -eq 0 || "$DO_CPU" -eq 1 ]] || die "--load requiere --cpu"
+[[ -n "$LABEL" ]] || LABEL="$APP${FLAGS_FILE:+:$(basename "$FLAGS_FILE")}"
+for tool in python3 wtype niri curl jq; do command -v "$tool" > /dev/null || die "falta la herramienta: $tool"; done
+[[ -n "${WAYLAND_DISPLAY:-}" ]] || die "hace falta una sesión Wayland"
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/electron-flags-bench.XXXXXX")"
+LEADER=""
+PORT=""
+# El CLI de VS Code y Antigravity relanza la app en otra sesión: el grupo del líder no basta,
+# se agregan los grupos de todo proceso que lleve el puerto de depuración en su línea de comandos.
+app_groups() {
+  {
+    [[ -z "$LEADER" ]] || echo "$LEADER"
+    [[ -z "$PORT" ]] || pgrep -f -- "--remote-debugging-port=$PORT" 2> /dev/null | xargs -r -I{} ps -o pgid= -p {} 2> /dev/null | tr -d ' '
+    # Antigravity IDE deja su servidor `agy --hub` huérfano en otra sesión: se reconoce por el XDG temporal de su entorno.
+    local env pid
+    for env in /proc/[0-9]*/environ; do
+      grep -qaF -- "XDG_CONFIG_HOME=$WORK/config" "$env" 2> /dev/null || continue
+      pid="${env#/proc/}"
+      ps -o pgid= -p "${pid%/environ}" 2> /dev/null | tr -d ' '
+    done
+  } | sort -u
+}
+stop_app() {
+  [[ -n "$LEADER" || -n "$PORT" ]] || return 0
+  local g groups
+  groups="$(app_groups)"
+  for g in $groups; do kill -TERM -- "-$g" 2> /dev/null || true; done
+  for _ in $(seq 1 40); do
+    local alive=0
+    for g in $groups; do pgrep -g "$g" > /dev/null 2>&1 && alive=1; done
+    [[ "$alive" -eq 1 ]] || break
+    sleep 0.25
+  done
+  for g in $groups; do kill -KILL -- "-$g" 2> /dev/null || true; done
+  wait "$LEADER" 2> /dev/null || true
+  LEADER=""
+}
+cleanup() { stop_app; rm -rf "$WORK"; }
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+# --- Archivo de flags dentro del XDG_CONFIG_HOME temporal -------------------------
+mkdir -p "$WORK/config" "$WORK/cache" "$WORK/data"
+{
+  [[ -z "$FLAGS_FILE" ]] || sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$FLAGS_FILE"
+  for f in "${FLAGS[@]}"; do printf '%s\n' "$f"; done
+} > "$WORK/config/$CONF"
+# Sin flags no hay archivo: el wrapper de Spotify pasaría un argumento vacío con un archivo vacío.
+[[ -s "$WORK/config/$CONF" ]] || rm -f "$WORK/config/$CONF"
+EXPECTED="$(tr '\n' ' ' < "$WORK/config/$CONF" 2> /dev/null || true)"
+
+free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
+PORT="$(free_port)"
+
+# --- App y argumentos -----------------------------------------------------------
+ARGS=("--remote-debugging-port=$PORT")
+case "$APP" in
+  code|antigravity-ide)
+    : > "$WORK/typing.txt"
+    ARGS+=(--extensions-dir="$WORK/ext" --disable-extensions --disable-workspace-trust --skip-welcome --skip-release-notes
+      --new-window "$WORK/typing.txt") ;;
+  electron)
+    mkdir -p "$WORK/app"
+    printf '%s\n' '{"name":"bench","main":"main.js"}' > "$WORK/app/package.json"
+    printf '%s\n' "const {app,BrowserWindow}=require('electron');" \
+      "app.whenReady().then(()=>{new BrowserWindow({width:900,height:600}).loadFile('typing.html')});" \
+      "app.on('window-all-closed',()=>app.quit());" > "$WORK/app/main.js"
+    printf '%s\n' '<title>bench-typing</title>' '<input id=t autofocus style="font-size:40px;width:90%">' > "$WORK/app/typing.html"
+    ARGS=("$WORK/app" "--remote-debugging-port=$PORT") ;;
+  spotify) ;;
+esac
+
+ENV_CMD=(env)
+[[ "$NO_ENV_HINT" -eq 0 ]] || ENV_CMD+=(-u ELECTRON_OZONE_PLATFORM_HINT)
+ENV_CMD+=("XDG_CONFIG_HOME=$WORK/config" "XDG_CACHE_HOME=$WORK/cache" "XDG_DATA_HOME=$WORK/data")
+
+log "lanzando $WRAPPER con flags: ${EXPECTED:-(ninguno)}"
+# setsid puede bifurcarse: el líder de grupo es el PID que el propio hijo escribe antes de hacer exec.
+# shellcheck disable=SC2016
+setsid bash -c 'echo "$$" > "$0"; exec "$@"' "$WORK/leader.pid" "${ENV_CMD[@]}" "$WRAPPER" "${ARGS[@]}" > "$WORK/app.log" 2>&1 &
+for _ in $(seq 1 20); do [[ -s "$WORK/leader.pid" ]] && break; sleep 0.1; done
+LEADER="$(cat "$WORK/leader.pid" 2> /dev/null || true)"
+[[ -n "$LEADER" ]] || die "no se pudo lanzar la app"
+for _ in $(seq 1 120); do
+  curl -fs "http://127.0.0.1:$PORT/json/version" > /dev/null 2>&1 && break
+  kill -0 "$LEADER" 2> /dev/null || pgrep -f -- "--remote-debugging-port=$PORT" > /dev/null 2>&1 || die "la app terminó antes de abrir el puerto de depuración: $(tail -n 5 "$WORK/app.log" 2> /dev/null | tr "\n" " ")"
+  sleep 0.5
+done
+curl -fs "http://127.0.0.1:$PORT/json/version" > /dev/null 2>&1 || die "la app no abrió el puerto de depuración en 60 s"
+sleep 3
+
+INFO="$(python3 "$PROBE" info --port "$PORT")" || die "no pude inspeccionar el proceso principal de la app"
+TYPING='{}'
+CPU='{}'
+if [[ "$DO_TYPING" -eq 1 ]]; then
+  log "escritura: á é ñ con wtype y con el módulo Unicode de fcitx5..."
+  TYPING="$(python3 "$PROBE" typing --port "$PORT" --title "$TITLE")" || TYPING='{"error":"probe falló"}'
+fi
+if [[ "$DO_CPU" -eq 1 ]]; then
+  log "cpu: $WINDOWS ventanas de ${SECONDS_MEASURE}s$([[ "$LOAD" -eq 1 ]] && echo ' (con carga sintética)')..."
+  cpu_args=(--port "$PORT" --seconds "$SECONDS_MEASURE" --windows "$WINDOWS")
+  [[ "$LOAD" -eq 0 ]] || cpu_args+=(--load)
+  CPU="$(python3 "$PROBE" cpu "${cpu_args[@]}")" || CPU='{"error":"probe falló"}'
+fi
+stop_app
+
+REPORT="$(jq -nc --arg label "$LABEL" --arg app "$APP" --arg wrapper "$WRAPPER" --arg conf "$CONF" --arg expected "$EXPECTED" \
+  --argjson env_hint "$([[ "$NO_ENV_HINT" -eq 0 ]] && echo true || echo false)" \
+  --argjson info "$INFO" --argjson typing "$TYPING" --argjson cpu "$CPU" \
+  '{label:$label, app:$app, wrapper:$wrapper, conf:$conf, expected:$expected, env_hint:$env_hint, info:$info, typing:$typing, cpu:$cpu}')"
+
+human() {
+  printf '== electron-flags-bench: %s ==\n' "$LABEL"
+  printf 'wrapper : %s (lee %s)  ELECTRON_OZONE_PLATFORM_HINT=%s\n' "$WRAPPER" "$CONF" "$([[ "$NO_ENV_HINT" -eq 0 ]] && echo "${ELECTRON_OZONE_PLATFORM_HINT:-<vacío>}" || echo quitada)"
+  printf 'pedidos : %s\n' "${EXPECTED:-(ninguno)}"
+  local flag leidos="" expected_flags
+  read -ra expected_flags <<< "$EXPECTED"
+  for flag in "${expected_flags[@]}"; do
+    if jq -e --arg f "$flag" '.info.args | index($f) != null' <<< "$REPORT" > /dev/null; then leidos+="$flag(ok) "; else leidos+="$flag(NO LEÍDO) "; fi
+  done
+  printf 'leídos  : %s\n' "${leidos:-(ninguno)}"
+  jq -r '"wayland : nativo=\(.info.wayland_native)  (\(.info.browser // "versión desconocida"))"' <<< "$REPORT"
+  if [[ "$DO_TYPING" -eq 1 ]]; then
+    jq -r '.typing | "typing  : directo(wtype)=\(.direct // "?") ok=\(if .direct_ok == null then "?" else .direct_ok end) | fcitx5-unicode=\(.fcitx5_unicode // "?") ok=\(if .fcitx5_unicode_ok == null then "?" else .fcitx5_unicode_ok end) | eventos_composicion=\(.composition_events // "?") | ventana_enfocada=\(.window_focused // "?")"' <<< "$REPORT"
+  fi
+  if [[ "$DO_CPU" -eq 1 ]]; then
+    jq -r '.cpu | "cpu     : \(.cpu_pct_core // "?")% de 1 núcleo (mediana; muestras \(.cpu_samples // [])) sistema=\(.cpu_system_pct // "?")% procesos=\(.processes // "?") carga_sintética=\(.load // false)"' <<< "$REPORT"
+  fi
+}
+
+if [[ "$JSON_OUT" -eq 1 ]]; then
+  human >&2
+  printf '%s\n' "$REPORT"
+else
+  human
+fi

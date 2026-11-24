@@ -256,12 +256,17 @@ def cmd_video(a):
     return 0
 
 
-def focus_window(title_hint):
-    for w in niri_windows() or []:
-        if title_hint in (w.get("title") or ""):
-            r = subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(w["id"])], capture_output=True)
-            return r.returncode == 0
-    return False
+def focus_window(title_hint, wait=0.0):
+    """Enfoca la ventana de niri cuyo título contiene title_hint; con wait espera a que aparezca."""
+    end = time.time() + wait
+    while True:
+        for w in niri_windows() or []:
+            if title_hint in (w.get("title") or ""):
+                r = subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(w["id"])], capture_output=True)
+                return r.returncode == 0
+        if time.time() >= end:
+            return False
+        time.sleep(0.5)
 
 
 def field_value(ws):

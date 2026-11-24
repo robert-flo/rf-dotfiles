@@ -9,7 +9,10 @@ BROWSER_FLAGS ?= $(CURDIR)/dot_config/chrome-flags.conf
 BROWSER_LABEL ?= $(notdir $(BROWSER_FLAGS))
 BENCH_ARGS    ?=
 
-.PHONY: help-browser browser-bench browser-flags-check browser-flags-check-all
+ELECTRON_APP   ?= code
+ELECTRON_ARGS  ?=
+
+.PHONY: help-browser browser-bench browser-flags-check browser-flags-check-all electron-bench
 
 help-browser: ## Show browser flag evidence targets
 	@printf "\n"
@@ -19,6 +22,8 @@ help-browser: ## Show browser flag evidence targets
 	@printf "  $(GREEN)make browser-flags-check-all$(NC)  Check each Chromium-family flag file against its own installed binary\n"
 	@printf "  $(GREEN)make browser-bench$(NC)        Measure BROWSER_FLAGS in a temp profile (opens windows ~60 s)\n"
 	@printf "  $(DIM)  vars: BROWSER_BIN (default: Chrome stable), BROWSER_FLAGS, BROWSER_LABEL, BENCH_ARGS (e.g. --codecs h264)$(NC)\n"
+	@printf "  $(GREEN)make electron-bench$(NC)       Measure an Electron/CEF app through its real wrapper (opens a window ~30 s)\n"
+	@printf "  $(DIM)  vars: ELECTRON_APP (code|antigravity-ide|electron|spotify), ELECTRON_ARGS (e.g. --typing -F --enable-wayland-ime)$(NC)\n"
 
 browser-flags-check: ## Check that each flag in BROWSER_FLAGS exists in BROWSER_BIN
 ifndef EMBEDDED
@@ -80,4 +85,18 @@ endif
 		printf "  ▶ [dry-run] scripts/browser-flags-bench $(if $(BROWSER_BIN),-b $(BROWSER_BIN)) -f $(BROWSER_FLAGS) -l $(BROWSER_LABEL) $(BENCH_ARGS)\n"; \
 	else \
 		"$(CURDIR)/scripts/browser-flags-bench" $(if $(BROWSER_BIN),-b "$(BROWSER_BIN)") -f "$(BROWSER_FLAGS)" -l "$(BROWSER_LABEL)" $(BENCH_ARGS); \
+	fi
+
+electron-bench: ## Measure ELECTRON_APP (flags read, native Wayland, typing, CPU) via its real wrapper
+ifndef EMBEDDED
+	@printf "\n"
+	@printf "$(CYAN)🧪 electron-bench · $(ELECTRON_APP)$(NC)\n"
+	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(YELLOW)  ⚠ opens a real app window on this screen for about half a minute$(NC)\n"
+endif
+	@set -euo pipefail; \
+	if [ "$(DRY_RUN)" = "1" ]; then \
+		printf "  ▶ [dry-run] %s\n" "scripts/electron-flags-bench -a $(ELECTRON_APP) $(ELECTRON_ARGS)"; \
+	else \
+		"$(CURDIR)/scripts/electron-flags-bench" -a "$(ELECTRON_APP)" $(ELECTRON_ARGS); \
 	fi
