@@ -7,6 +7,9 @@
   typing  --port P --url U               escribe á é ñ (wtype directo y Unicode de fcitx5) y cuenta los
                                          eventos de composición (>0 = Chrome usa text-input por Wayland)
   stable  --port P                       sesión viva: pestaña responde y el proceso GPU sigue vivo
+  procs   --port P --profile D --site A --other B
+                                         abre 3 pestañas del mismo sitio (A) y una de otro (B), cuenta procesos
+                                         y memoria, tumba una pestaña y reporta cuántas de las demás sobreviven
 
 Todas imprimen un único objeto JSON por stdout.
 """
@@ -313,10 +316,90 @@ def cmd_stable(a):
     return 0
 
 
+def proc_type(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as fh:
+            # Los procesos hijos reescriben su cmdline con espacios en vez de NUL.
+            args = fh.read().decode(errors="replace").replace("\0", " ").split()
+    except OSError:
+        return None
+    for arg in args:
+        if arg.startswith("--type="):
+            return arg[7:]
+    return "browser"
+
+
+def pss_mib(pid):
+    """Memoria proporcional (PSS): reparte las páginas compartidas entre procesos, a diferencia de RSS."""
+    try:
+        with open(f"/proc/{pid}/smaps_rollup") as fh:
+            for line in fh:
+                if line.startswith("Pss:"):
+                    return int(line.split()[1]) / 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 0.0
+
+
+def process_census(root):
+    kinds, pss = {}, 0.0
+    for pid in tree_ticks(root):
+        kind = proc_type(pid)
+        if kind:
+            kinds[kind] = kinds.get(kind, 0) + 1
+            pss += pss_mib(pid)
+    return kinds, round(pss, 1)
+
+
+def responds(page):
+    try:
+        ws = cdp.WS(page["webSocketDebuggerUrl"])
+        ws.sock.settimeout(3)
+        ok = ws.call("Runtime.evaluate", {"expression": "1+1", "returnByValue": True})["result"]["value"] == 2
+        ws.close()
+        return ok
+    except (OSError, TimeoutError, KeyError, RuntimeError):
+        return False
+
+
+def cmd_procs(a):
+    root = root_pid(a.profile)
+    pages = [cdp.new_page(a.port, f"{a.site}/p{i}.html") for i in (1, 2, 3)]
+    pages.append(cdp.new_page(a.port, f"{a.other}/other.html"))
+    time.sleep(a.settle)
+    kinds, pss = process_census(root)
+    victim, same_site, other_site = pages[0], pages[1:3], pages[3]
+    ws = cdp.WS(victim["webSocketDebuggerUrl"])
+    ws.sock.settimeout(3)
+    try:
+        ws.call("Page.crash")
+    except (OSError, TimeoutError, RuntimeError):
+        pass  # el renderer muere antes de contestar
+    ws.close()
+    time.sleep(a.after_crash)
+    same_alive = sum(1 for pg in same_site if responds(pg))
+    other_alive = responds(other_site)
+    print(
+        json.dumps(
+            {
+                "processes": kinds,
+                "renderers": kinds.get("renderer", 0),
+                "pss_mib": pss,
+                "tabs_total": len(pages),
+                "others_total": len(pages) - 1,
+                "others_alive_after_crash": same_alive + int(other_alive),
+                "same_site_alive_after_crash": same_alive,
+                "browser_alive_after_crash": other_alive or responds(same_site[0]),
+            }
+        )
+    )
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("gpu", "video", "typing", "stable"):
+    for name in ("gpu", "video", "typing", "stable", "procs"):
         s = sub.add_parser(name)
         s.add_argument("--port", type=int, required=True)
         if name == "video":
@@ -329,8 +412,14 @@ def main():
             s.add_argument("--inject", help="archivo JS que se inyecta antes de cada documento nuevo de la pestaña")
         if name == "typing":
             s.add_argument("--url", required=True)
+        if name == "procs":
+            s.add_argument("--profile", required=True)
+            s.add_argument("--site", required=True, help="origen de las 3 pestañas del mismo sitio")
+            s.add_argument("--other", required=True, help="origen de la pestaña de otro sitio")
+            s.add_argument("--settle", type=float, default=5, help="segundos de espera antes de contar procesos")
+            s.add_argument("--after-crash", type=float, default=2, help="segundos de espera tras tumbar la pestaña")
     a = p.parse_args()
-    return {"gpu": cmd_gpu, "video": cmd_video, "typing": cmd_typing, "stable": cmd_stable}[a.cmd](a)
+    return {"gpu": cmd_gpu, "video": cmd_video, "typing": cmd_typing, "stable": cmd_stable, "procs": cmd_procs}[a.cmd](a)
 
 
 if __name__ == "__main__":

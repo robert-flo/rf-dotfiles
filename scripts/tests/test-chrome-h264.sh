@@ -27,7 +27,7 @@ export PYTHONDONTWRITEBYTECODE=1
 
 check "el lanzador compila" python3 -B -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$LAUNCHER"
 
-export CHROME_H264_PROFILE="$TMP_WORK/profile"
+export CHROME_H264_PROFILE="$TMP_WORK/profiles"
 export CHROME_H264_SCRIPT="$TMP_WORK/inject.js"
 export CHROME_H264_BIN="$TMP_WORK/fake-chrome"
 export LOG="$TMP_WORK/commands.log"
@@ -78,7 +78,7 @@ rc=$?
 set -e
 out="$(cat "$LOG")"
 assert_eq "7" "$rc" "el código de salida de Chrome se propaga"
-assert_contains "$out" "--user-data-dir=$CHROME_H264_PROFILE" "usa el perfil dedicado"
+assert_contains "$out" "--user-data-dir=$CHROME_H264_PROFILE/stable" "usa el perfil dedicado de stable"
 assert_contains "$out" "--remote-debugging-pipe" "usa depuración por pipe (sin puerto TCP)"
 assert_contains "$out" "https://example.test/" "pasa las URLs a Chrome"
 assert_contains "$out" "--autoplay-policy=no-user-gesture-required" "--autoplay llega a Chrome"
@@ -95,10 +95,25 @@ for s in S1 S3; do
 done
 check "reanuda el worker sin inyectar" grep -q "Runtime.runIfWaitingForDebugger S2" "$LOG"
 
-# Perfil ajeno intacto y --clean sin residuos.
-check "crea el perfil dedicado" [ -d "$CHROME_H264_PROFILE" ]
+# Otro navegador: perfil propio, el stable no se toca.
+set +e
+"$LAUNCHER" -b edge https://example.test/ 2> "$TMP_WORK/err"
+set -e
+assert_contains "$(cat "$LOG")" "--user-data-dir=$CHROME_H264_PROFILE/edge" "-b edge usa su propio perfil"
+check "-b edge no toca el perfil de stable" [ -d "$CHROME_H264_PROFILE/stable" ]
+set +e
+"$LAUNCHER" -b netscape 2> "$TMP_WORK/err"; rc=$?
+set -e
+assert_eq "2" "$rc" "un navegador desconocido termina con 2"
+
+# --clean -b limpia solo ese navegador; --clean limpia todo y no deja residuos.
+"$LAUNCHER" --clean -b edge 2> "$TMP_WORK/err"
+check "--clean -b edge borra solo edge" [ ! -e "$CHROME_H264_PROFILE/edge" ]
+check "--clean -b edge deja stable" [ -d "$CHROME_H264_PROFILE/stable" ]
+check "crea el perfil dedicado" [ -d "$CHROME_H264_PROFILE/stable" ]
+mkdir -p "$CHROME_H264_PROFILE/Default"   # resto de una versión anterior (el perfil era la raíz)
 "$LAUNCHER" --clean 2> "$TMP_WORK/err"
-check "--clean borra el perfil" [ ! -e "$CHROME_H264_PROFILE" ]
+check "--clean borra todos los perfiles y la carpeta" [ ! -e "$CHROME_H264_PROFILE" ]
 "$LAUNCHER" --clean 2> "$TMP_WORK/err"
 assert_contains "$(cat "$TMP_WORK/err")" "nada que limpiar" "--clean es idempotente"
 

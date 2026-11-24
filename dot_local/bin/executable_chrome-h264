@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""chrome-h264 — Chrome estable con H.264 forzado en YouTube (opt-in).
+"""chrome-h264 — Chrome (o Beta, Chromium, Edge) con H.264 forzado en YouTube (opt-in).
 
 La HD 530 decodifica H.264 por hardware (VA-API) pero no VP9 ni AV1. YouTube
 prefiere AV1/VP9, y Chrome los decodifica por software (≈100-130 % de un núcleo
-a 1080p60). Este lanzador abre Chrome estable en un perfil propio y, antes de que
+a 1080p60). Este lanzador abre el navegador en un perfil propio y, antes de que
 cargue cada página, inyecta ~/.local/share/chrome-h264/h264only.js, que oculta
 VP9/AV1 y deja a YouTube con H.264 (≈40-50 %).
 
@@ -11,12 +11,12 @@ Por qué así: Chrome de marca (158) ignora --load-extension, y la depuración r
 está bloqueada sobre el perfil por defecto. Se usa --remote-debugging-pipe (sin
 puerto TCP) con un user-data-dir dedicado.
 
-Activar:    chrome-h264 [URL...]
-Desactivar: abrir Chrome como siempre (`google-chrome-stable`); este perfil no se toca.
-Limpiar:    chrome-h264 --clean   (borra el perfil dedicado; el perfil normal no se toca)
+Activar:    chrome-h264 [-b stable|beta|chromium|edge] [URL...]   (por defecto: stable)
+Desactivar: abrir el navegador como siempre; su perfil normal no se toca.
+Limpiar:    chrome-h264 --clean [-b NAVEGADOR]   (borra los perfiles dedicados; sin -b, todos)
 
-Solo la biblioteca estándar de Python. Los flags salen del wrapper
-google-chrome-stable (~/.config/chrome-flags.conf), igual que en Chrome normal.
+Solo la biblioteca estándar de Python. Los flags salen del wrapper de cada navegador
+(~/.config/chrome-flags.conf, chromium-flags.conf…), igual que al abrirlo normalmente.
 """
 import argparse
 import fcntl
@@ -30,9 +30,17 @@ from pathlib import Path
 
 HOME = Path.home()
 STATE = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state"))
-PROFILE = Path(os.environ.get("CHROME_H264_PROFILE", STATE / "chrome-h264"))
+ROOT = Path(os.environ.get("CHROME_H264_PROFILE", STATE / "chrome-h264"))
 SCRIPT = Path(os.environ.get("CHROME_H264_SCRIPT", HOME / ".local/share/chrome-h264/h264only.js"))
-CHROME = os.environ.get("CHROME_H264_BIN", "google-chrome-stable")
+# nombre corto -> comando que lee el archivo de flags de ese navegador
+BROWSERS = {
+    "stable": "google-chrome-stable",
+    "beta": "google-chrome-beta",
+    "chromium": "chromium",
+    "edge": "microsoft-edge-stable",
+}
+# Brave Origin 158 no sirve: su binario termina con "Remote debugging pipe file descriptors are not open"
+# aunque el lanzador le pase los fd 3 y 4, así que no hay forma de inyectar el script.
 INJECTABLE = {"page", "iframe"}
 
 
@@ -40,9 +48,9 @@ def log(msg):
     print(f"chrome-h264: {msg}", file=sys.stderr)
 
 
-def running_instance():
-    """PID del Chrome que ya usa el perfil, o None (SingletonLock apunta a host-pid)."""
-    lock = PROFILE / "SingletonLock"
+def running_instance(profile):
+    """PID del navegador que ya usa el perfil, o None (SingletonLock apunta a host-pid)."""
+    lock = profile / "SingletonLock"
     try:
         pid = int(os.readlink(lock).rsplit("-", 1)[1])
         os.kill(pid, 0)
@@ -106,11 +114,12 @@ def launch(args, extra):
     if not SCRIPT.is_file():
         log(f"falta {SCRIPT}; corré `chezmoi apply`")
         return 1
-    pid = running_instance()
+    profile = ROOT / args.browser
+    pid = running_instance(profile)
     if pid:
-        log(f"ya hay un chrome-h264 abierto (pid {pid}); cerralo o usá esa ventana")
+        log(f"ya hay un chrome-h264 ({args.browser}) abierto (pid {pid}); cerralo o usá esa ventana")
         return 1
-    PROFILE.mkdir(parents=True, exist_ok=True)
+    profile.mkdir(parents=True, exist_ok=True)
     source = SCRIPT.read_text(encoding="utf-8")
 
     to_chrome_r, to_chrome_w = (fd_above(f) for f in os.pipe())
@@ -121,8 +130,8 @@ def launch(args, extra):
         os.dup2(from_chrome_w, 4)
 
     cmd = [
-        CHROME,
-        f"--user-data-dir={PROFILE}",
+        os.environ.get("CHROME_H264_BIN", BROWSERS[args.browser]),
+        f"--user-data-dir={profile}",
         "--remote-debugging-pipe",
         "--no-first-run",
         *(["--autoplay-policy=no-user-gesture-required"] if args.autoplay else []),
@@ -147,25 +156,31 @@ def launch(args, extra):
     return 128 - code if code < 0 else code
 
 
-def clean():
-    if running_instance():
-        log("chrome-h264 está abierto; cerralo antes de limpiar")
+def clean(browser):
+    # Sin -b se borra toda la carpeta raíz (también restos de versiones anteriores del lanzador).
+    target = ROOT / browser if browser else ROOT
+    if any(running_instance(ROOT / name) for name in BROWSERS):
+        log("hay un chrome-h264 abierto; cerralo antes de limpiar")
         return 1
-    if PROFILE.exists():
-        shutil.rmtree(PROFILE)
-        log(f"borrado {PROFILE}")
+    if target.exists():
+        shutil.rmtree(target)
+        log(f"borrado {target}")
     else:
         log("no había nada que limpiar")
     return 0
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Chrome estable con H.264 forzado en YouTube (opt-in). Argumentos extra (URLs, flags) se pasan a Chrome.")
-    ap.add_argument("--clean", action="store_true", help="borra el perfil dedicado y sale")
+    ap = argparse.ArgumentParser(description="Navegador Chromium con H.264 forzado en YouTube (opt-in). Argumentos extra (URLs, flags) se pasan al navegador.")
+    ap.add_argument("-b", "--browser", choices=sorted(BROWSERS), default=None, help="navegador (al lanzar: stable por defecto; con --clean: sin -b se borran todos)")
+    ap.add_argument("--clean", action="store_true", help="borra los perfiles dedicados (los de -b, o todos) y sale")
     ap.add_argument("--autoplay", action="store_true", help="permite reproducción automática (pruebas)")
     ap.add_argument("-v", "--verbose", action="store_true", help="muestra dónde se inyecta el script")
     args, extra = ap.parse_known_args()
-    return clean() if args.clean else launch(args, extra)
+    if args.clean:
+        return clean(args.browser)
+    args.browser = args.browser or "stable"
+    return launch(args, extra)
 
 
 if __name__ == "__main__":
