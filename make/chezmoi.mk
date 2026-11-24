@@ -5,6 +5,7 @@
 CHEZMOI_BIN ?= chezmoi
 CHEZMOI_PROFILES ?= clavis nyxuri omarchy
 
+# apply = el repo gana: --force evita el prompt diff/overwrite/skip. `make safe` (daily.mk) nunca pasa --force.
 .PHONY: help-chezmoi status diff apply apply-clavis apply-nyxuri apply-omarchy managed ignored verify
 
 help-chezmoi: ## Show Chezmoi lifecycle targets
@@ -13,10 +14,10 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make status$(NC)               Show pending changes against the chezmoi source copy\n"
 	@printf "  $(GREEN)make diff$(NC)                 Show full diff against the chezmoi source copy\n"
-	@printf "  $(GREEN)make apply$(NC)                Apply dotfiles for current user (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-clavis$(NC)         Apply with CHEZMOI_PROFILE=clavis (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-nyxuri$(NC)         Apply with CHEZMOI_PROFILE=nyxuri (DRY_RUN=1)\n"
-	@printf "  $(GREEN)make apply-omarchy$(NC)        Apply with CHEZMOI_PROFILE=omarchy (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply$(NC)                Apply dotfiles for current user; overwrites local changes (see make lose) (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-clavis$(NC)         Apply with CHEZMOI_PROFILE=clavis; overwrites local changes (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-nyxuri$(NC)         Apply with CHEZMOI_PROFILE=nyxuri; overwrites local changes (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make apply-omarchy$(NC)        Apply with CHEZMOI_PROFILE=omarchy; overwrites local changes (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make managed$(NC)              List managed paths for active profile\n"
 	@printf "  $(GREEN)make ignored$(NC)              List ignored paths for active profile\n"
 	@printf "  $(GREEN)make verify$(NC)               Verify templates and Makefile/make/* exclusion\n"
@@ -51,32 +52,34 @@ ifndef EMBEDDED
 	@printf "  • verify templates:     $(BLUE)make verify$(NC)\n\n"
 endif
 
-apply: ## Apply dotfiles using repo as source (supports DRY_RUN=1)
+apply: ## Apply dotfiles using repo as source, overwriting local changes (supports DRY_RUN=1)
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply · chezmoi apply (-S $(CURDIR))$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI_BIN) apply -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI_BIN) apply --force -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
 
-apply-clavis apply-nyxuri apply-omarchy: apply-%: ## Apply dotfiles for a specific CHEZMOI_PROFILE (supports DRY_RUN=1)
+apply-clavis apply-nyxuri apply-omarchy: apply-%: ## Apply dotfiles for a specific CHEZMOI_PROFILE, overwriting local changes (supports DRY_RUN=1)
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply-$* · chezmoi apply (CHEZMOI_PROFILE=$*)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) env CHEZMOI_PROFILE="$*" $(CHEZMOI_BIN) apply -S "$(CURDIR)"
+	@$(EXEC) env CHEZMOI_PROFILE="$*" $(CHEZMOI_BIN) apply --force -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
 	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
