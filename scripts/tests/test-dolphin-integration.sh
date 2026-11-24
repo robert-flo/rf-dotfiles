@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# test-dolphin-integration.sh — Integración de Dolphin en el perfil niri/Clavis (#200).
+# test-dolphin-integration.sh — Integración de Dolphin en el perfil niri/Clavis
+# (#200) y sus preferencias sembradas con create_dolphinrc (#201).
 #
 # Sin abrir ventanas. Verifica que los paquetes viven solo en el manifiesto único,
 # que el prefijo del menú de aplicaciones solo llega al perfil clavis, que el script
 # de ksycoca es inerte fuera de clavis y que la variable global del tema de Qt y el
-# gestor de carpetas por defecto no cambian.
+# gestor de carpetas por defecto no cambian. Para #201 comprueba el contenido del
+# dolphinrc sembrado, que solo llega a clavis y que un segundo `chezmoi apply` (en
+# un destino temporal) no pisa lo que Dolphin escribe.
 # ==============================================================================
 set -euo pipefail
 
@@ -28,6 +31,7 @@ in_manifest() { jq -e --arg p "$1" '.packages.official | index($p) != null' "$MA
 PKGS=(archlinux-xdg-menu breeze-icons dolphin ffmpegthumbs kde-cli-tools kdegraphics-thumbnailers)
 for pkg in "${PKGS[@]}"; do
   check "$pkg está en packages.json (official)" in_manifest "$pkg"
+  # create_dolphinrc se excluye: ffmpegthumbs/gsthumbnail aparecen allí como nombres de plugin de miniaturas, no como paquetes.
   others="$(cd "$REPO_ROOT" && grep -rIl -w --exclude-dir=.git --exclude=.git --exclude-dir=tests --exclude=packages.json --exclude=AGENTS.md --exclude=40-xdg-menu.conf --exclude=create_dolphinrc --exclude=run_onchange_after_03-rebuild-ksycoca.sh.tmpl -- "$pkg" . || true)"
   check "ningún otro archivo lista $pkg" [ -z "$others" ]
 done
