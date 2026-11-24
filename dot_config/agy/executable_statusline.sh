@@ -47,7 +47,7 @@ bar() {
   printf '%s' "$out"
 }
 
-IFS=$'\x1f' read -r display effort ctx_raw dir g5_rem g5_reset gw_rem gw_reset p5_rem pw_rem < <(
+IFS=$'\x1f' read -r display effort ctx_raw dir gemini_5h_remaining gemini_5h_reset gemini_week_remaining gemini_week_reset p3_5h_remaining p3_week_remaining < <(
   jq -r '[
     .model.display_name // "",
     .model.effort // "",
@@ -89,7 +89,7 @@ if [[ -n $branch ]]; then
 fi
 printf '%s\n' "$line"
 printf '  Gemini 5h: %s%% usado · reset en %s | Gemini semanal: %s%% usado · reset en %s\n' \
-  "$(used_percent "$g5_rem")" "$(reset_label "$g5_reset")" \
-  "$(used_percent "$gw_rem")" "$(reset_label "$gw_reset")"
+  "$(used_percent "$gemini_5h_remaining")" "$(reset_label "$gemini_5h_reset")" \
+  "$(used_percent "$gemini_week_remaining")" "$(reset_label "$gemini_week_reset")"
 printf '  3p 5h: %s%% usado. | 3p semanal: %s%% usado.\n' \
-  "$(used_percent "$p5_rem")" "$(used_percent "$pw_rem")"
+  "$(used_percent "$p3_5h_remaining")" "$(used_percent "$p3_week_remaining")"

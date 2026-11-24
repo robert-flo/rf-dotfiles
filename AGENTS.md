@@ -31,6 +31,7 @@ Archivos y enlaces que deben existir idénticos en todos los perfiles del sistem
 - `dot_config/fish/`: Configuración global de la shell interactiva Fish.
 - `dot_config/fish/conf.d/android.fish`: Variables globales de ruta para Android SDK y herramientas de consola.
 - `dot_config/alacritty/alacritty.toml`: Emulador de terminal común de referencia.
+- `dot_config/agy/executable_statusline.sh`: Statusline de agy (sesión, cuota Gemini y 3p). Chezmoi la deja en `~/.config/agy/statusline.sh`. El hook `run_onchange_after_configure-agy-statusline.sh.tmpl` escribe `statusLine` en `~/.gemini/antigravity-cli/settings.json` sin borrar el resto.
 - `dot_config/btop/`, `dot_config/fastfetch/`: Diagnóstico y visualización CLI.
 - `dot_config/mpv/`: Reproductor multimedia con interfaz `uosc` Cupertino, botones MacTahoe y aceleración GPU.
 - `dot_config/obsidian/obsidian.json.tmpl`: Registro y apertura automática de la bóveda de notas (`Documents/Notas`).
