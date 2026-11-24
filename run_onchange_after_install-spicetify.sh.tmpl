@@ -11,6 +11,8 @@ set -euo pipefail
 
 CONFIG_FILE="{{ .chezmoi.homeDir }}/.config/spicetify/config-xpui.ini"
 PREFS_FILE="{{ .chezmoi.homeDir }}/.config/spotify/prefs"
+# SPOTIFY_DIR solo lo cambian las pruebas (scripts/tests/test-spicetify-global.sh).
+SPOTIFY_DIR="${SPOTIFY_DIR:-/opt/spotify}"
 
 # Si el perfil excluye spicetify (ej. clavis-upstream), no hacer nada
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -22,8 +24,33 @@ if ! command -v spicetify >/dev/null 2>&1; then
   exit 0
 fi
 
-if [[ ! -d /opt/spotify ]]; then
-  echo "==> [chezmoi] Aviso: /opt/spotify no existe; omitiendo configuración de Spicetify."
+if [[ ! -d "$SPOTIFY_DIR" ]]; then
+  echo "==> [chezmoi] Aviso: $SPOTIFY_DIR no existe; omitiendo configuración de Spicetify."
+  exit 0
+fi
+
+# Spotify es una instalación global: el parche de Spicetify vive en $SPOTIFY_DIR/Apps y es de
+# todos los usuarios. Mismo criterio que `spicetify` (src/status/spotify, v2.46.x): con algún
+# *.spa Spotify es STOCK (o MIXED, que Spicetify también deja respaldar); sin ningún *.spa y
+# con carpetas (xpui/, login/) está APLICADO. En ese estado `spicetify backup` no tiene nada
+# que copiar y falla con «Failed to backup app files … Reinstall Spotify».
+spotify_applied() {
+  local apps="$SPOTIFY_DIR/Apps"
+  [[ -z "$(find "$apps" -maxdepth 1 ! -type d -name '*.spa' -print -quit 2>/dev/null)" ]] \
+    && [[ -n "$(find "$apps" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null)" ]]
+}
+
+# Verificar si ya existe un backup registrado en config-xpui.ini
+has_backup=false
+if awk '/^\[Backup\]/{f=1; next} /^\[/{f=0} f && /^(version|with)[[:space:]]*=/{found=1} END{exit !found}' "$CONFIG_FILE"; then
+  has_backup=true
+fi
+
+# Ya parcheado (por otro usuario) y este usuario sin backup propio: no es falta de sudo ni un
+# error, es «ya hecho». `spicetify apply` sin backup propio tampoco sirve (exige un backup de
+# su propia versión) y `restore`/`clear` destruirían el parche ajeno: no se corre nada.
+if [[ "$has_backup" == false ]] && spotify_applied; then
+  echo "==> [chezmoi] Spotify ($SPOTIFY_DIR) ya está parcheado por Spicetify (otro usuario) y {{ .chezmoi.username }} no tiene backup propio: no hay nada que hacer, no se toca el parche."
   exit 0
 fi
 
@@ -36,17 +63,17 @@ elif sudo -n true 2>/dev/null; then
   SUDO_CMD="sudo"
 fi
 
-if [[ ! -w /opt/spotify || ! -w /opt/spotify/Apps ]] || [[ -n "$(find /opt/spotify/Apps ! -writable -print -quit 2>/dev/null)" ]]; then
+if [[ ! -w "$SPOTIFY_DIR" || ! -w "$SPOTIFY_DIR/Apps" ]] || [[ -n "$(find "$SPOTIFY_DIR/Apps" ! -writable -print -quit 2>/dev/null)" ]]; then
   if [[ "$CAN_SUDO" == true ]]; then
-    echo "==> [chezmoi] Ajustando permisos de escritura en /opt/spotify para Spicetify..."
-    $SUDO_CMD chmod a+wr /opt/spotify
-    $SUDO_CMD chmod -R a+wrX /opt/spotify/Apps
+    echo "==> [chezmoi] Ajustando permisos de escritura en $SPOTIFY_DIR para Spicetify..."
+    $SUDO_CMD chmod a+wr "$SPOTIFY_DIR"
+    $SUDO_CMD chmod -R a+wrX "$SPOTIFY_DIR/Apps"
   else
     if [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
-      echo "==> [chezmoi] ERROR: apply completo (make apply*) sin sudo y /opt/spotify no es escribible: no se puede configurar Spicetify." >&2
+      echo "==> [chezmoi] ERROR: apply completo (make apply*) sin sudo y $SPOTIFY_DIR no es escribible: no se puede configurar Spicetify." >&2
       exit 1
     fi
-    echo "==> [chezmoi] Aviso: /opt/spotify no es escribible y no hay sudo directo; omitiendo Spicetify."
+    echo "==> [chezmoi] Aviso: $SPOTIFY_DIR no es escribible y no hay sudo directo; omitiendo Spicetify."
     exit 0
   fi
 fi
@@ -56,16 +83,25 @@ if [[ ! -f "$PREFS_FILE" ]]; then
   touch "$PREFS_FILE"
 fi
 
-# Verificar si ya existe un backup registrado en config-xpui.ini
-has_backup=false
-if awk '/^\[Backup\]/{f=1; next} /^\[/{f=0} f && /^(version|with)[[:space:]]*=/{found=1} END{exit !found}' "$CONFIG_FILE"; then
-  has_backup=true
-fi
-
 if [[ "$has_backup" == true ]]; then
   echo "==> [chezmoi] Aplicando tema y extensiones de Spicetify para {{ .chezmoi.username }}..."
-  spicetify apply || spicetify backup apply
+  if spotify_applied; then
+    # Sin *.spa no hay de dónde rehacer el backup: solo `apply` (con el backup propio).
+    spicetify apply
+  else
+    spicetify apply || spicetify backup apply
+  fi
 else
+  # Spicetify toma la versión del backup de `app.last-launched-version` en prefs. Un usuario que
+  # nunca abrió Spotify no la tiene: el backup quedaría con versión vacía y, tras abrir Spotify
+  # por primera vez, `spicetify apply` lo rechazaría («Spotify version and backup version are
+  # mismatched»). Se siembra con la versión del propio binario, el mismo valor que Spotify escribe.
+  if ! grep -q '^app.last-launched-version=' "$PREFS_FILE"; then
+    spotify_version="$(timeout 10 "$SPOTIFY_DIR/spotify" --version 2>/dev/null | sed -n 's/^Spotify version \([^,]*\),.*/\1/p' | head -n1)" || true
+    if [[ -n "$spotify_version" ]]; then
+      printf 'app.last-launched-version="%s"\n' "$spotify_version" >> "$PREFS_FILE"
+    fi
+  fi
   echo "==> [chezmoi] Creando backup y aplicando Spicetify para {{ .chezmoi.username }}..."
   spicetify backup apply
 fi
