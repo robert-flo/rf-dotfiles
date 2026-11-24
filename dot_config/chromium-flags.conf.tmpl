@@ -1,0 +1,32 @@
+{{- $profile := env "CHEZMOI_PROFILE" -}}
+{{- if not $profile -}}
+{{-   if eq .chezmoi.username "niri-upstream" -}}
+{{-     $profile = "clavis-upstream" -}}
+{{-   else if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") -}}
+{{-     $profile = "clavis" -}}
+{{-   else if or (eq .chezmoi.username "nyxuri") (eq .chezmoi.username "nyxuri-test") (eq .chezmoi.username "nyxuri-legacy") -}}
+{{-     $profile = "nyxuri" -}}
+{{-   else -}}
+{{-     $profile = "omarchy" -}}
+{{-   end -}}
+{{- end -}}
+--ozone-platform=wayland
+--password-store=gnome-libsecret
+--enable-gpu-rasterization
+--enable-zero-copy
+--enable-features=AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,TouchpadOverscrollHistoryNavigation,OverlayScrollbar
+--no-default-browser-check
+{{- /* Las extensiones de Omarchy solo en el perfil omarchy y solo si existen: un --load-extension
+       con una ruta ausente deja a Chromium bloqueado en el diálogo "Error Loading Extension". */}}
+{{- if eq $profile "omarchy" }}
+{{- $dirs := list }}
+{{- range $ext := list "copy-url" "yt-dlp" "whatsapp-slim" }}
+{{-   $dir := printf "/usr/share/omarchy/default/chromium/extensions/%s" $ext }}
+{{-   if stat $dir }}
+{{-     $dirs = append $dirs $dir }}
+{{-   end }}
+{{- end }}
+{{- if $dirs }}
+--load-extension={{ join "," $dirs }}
+{{- end }}
+{{- end }}

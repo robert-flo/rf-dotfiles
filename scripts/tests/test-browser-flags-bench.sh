@@ -38,6 +38,7 @@ export NO_COLOR=1
 out="$("$BENCH" --help)"
 assert_contains "$out" "browser-flags-bench" "--help muestra el nombre"
 assert_contains "$out" "check-flags" "--help documenta check-flags"
+assert_contains "$out" "process-model" "--help documenta process-model"
 
 set +e
 out="$("$BENCH" --bogus 2>&1)"; rc=$?
