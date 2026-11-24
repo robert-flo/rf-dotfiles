@@ -36,6 +36,7 @@ Archivos y enlaces que deben existir idénticos en todos los perfiles del sistem
 - `dot_config/mpv/`: Reproductor multimedia con interfaz `uosc` Cupertino, botones MacTahoe y aceleración GPU.
 - `dot_config/obsidian/obsidian.json.tmpl`: Registro y apertura automática de la bóveda de notas (`Documents/Notas`).
 - `dot_config/spicetify/`: Configuración declarativa de Spicetify (`Themes/Sleek` con esquema `Catppuccin`, extensión `adblock.js` y `modify_config-xpui.ini.tmpl` preservando `[Backup]`), aplicada vía `run_onchange_after_install-spicetify.sh.tmpl`.
+- `dot_config/spotify-flags.conf`: Flags nativos de Wayland (`--ozone-platform=wayland`) leídos automáticamente por el wrapper `/usr/bin/spotify` en Arch.
 - `Documents/Notas/`: Bóveda de notas con tema Violet nativo y snippets de difuminado Glass.
 - `dot_config/thunderbird/`: Perfil de correo con tema translúcido LiquidBird.
 - `dot_bashrc.tmpl`: Entorno interactivo común (incluye exports de Android) + bloque condicional `{{ if eq .chezmoi.username "rollo" }}` para herramientas de administración (DiscoSeguro y Bóveda LUKS).
