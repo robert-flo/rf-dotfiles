@@ -22,9 +22,9 @@ ifndef EMBEDDED
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
-		printf "  ▶ [dry-run] $(SHELLCHECK) $(CURDIR)/scripts/yt-* $(CURDIR)/scripts/tests/*.sh\n"; \
+		printf "  ▶ [dry-run] $(SHELLCHECK) $(CURDIR)/scripts/yt-* $(CURDIR)/scripts/rf-make-daily.sh $(CURDIR)/scripts/tests/*.sh\n"; \
 	else \
-		$(SHELLCHECK) "$(CURDIR)"/scripts/yt-* "$(CURDIR)"/scripts/tests/*.sh; \
+		$(SHELLCHECK) "$(CURDIR)"/scripts/yt-* "$(CURDIR)"/scripts/rf-make-daily.sh "$(CURDIR)"/scripts/tests/*.sh; \
 		printf "$(GREEN)  ✓ shellcheck passed cleanly$(NC)\n"; \
 	fi
 ifndef EMBEDDED

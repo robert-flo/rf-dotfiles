@@ -11,8 +11,8 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "\n"
 	@printf "$(CYAN)Chezmoi Lifecycle$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
-	@printf "  $(GREEN)make status$(NC)               Show pending dotfile changes (-S repo)\n"
-	@printf "  $(GREEN)make diff$(NC)                 Show full diff against \$$HOME (-S repo)\n"
+	@printf "  $(GREEN)make status$(NC)               Show pending changes against the chezmoi source copy\n"
+	@printf "  $(GREEN)make diff$(NC)                 Show full diff against the chezmoi source copy\n"
 	@printf "  $(GREEN)make apply$(NC)                Apply dotfiles for current user (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make apply-clavis$(NC)         Apply with CHEZMOI_PROFILE=clavis (DRY_RUN=1)\n"
 	@printf "  $(GREEN)make apply-nyxuri$(NC)         Apply with CHEZMOI_PROFILE=nyxuri (DRY_RUN=1)\n"
@@ -21,13 +21,13 @@ help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "  $(GREEN)make ignored$(NC)              List ignored paths for active profile\n"
 	@printf "  $(GREEN)make verify$(NC)               Verify templates and Makefile/make/* exclusion\n"
 
-status: ## Show chezmoi status using repo as source
+status: ## Show chezmoi status using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
-	@printf "$(CYAN)📊 status · chezmoi drift (-S $(CURDIR))$(NC)\n"
+	@printf "$(CYAN)📊 status · chezmoi drift (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) status -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI) status -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
@@ -36,13 +36,13 @@ ifndef EMBEDDED
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n\n"
 endif
 
-diff: ## Show chezmoi diff using repo as source
+diff: ## Show chezmoi diff using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
-	@printf "$(CYAN)🔄 diff · chezmoi changes (-S $(CURDIR))$(NC)\n"
+	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@$(EXEC) $(CHEZMOI) --no-pager diff -S "$(CURDIR)"
+	@$(EXEC) $(CHEZMOI) --no-pager diff -S "$(shell $(DAILY_SH) source)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
