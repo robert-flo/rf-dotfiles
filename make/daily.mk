@@ -61,13 +61,7 @@ ifndef EMBEDDED
 	@printf "$(CYAN)⚠️  lose · archivos del home que un apply pisaría$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@set -euo pipefail; \
-	source="$$($(DAILY_SH) source)"; \
-	files="$$($(CHEZMOI) --color=false status -S "$$source" | $(DAILY_SH) lose-paths)"; \
-	if [ -n "$$files" ]; then \
-		printf '%s\n' "$$files"; \
-		exit 1; \
-	fi
+	@$(DAILY_SH) lose
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ nada que perder$(NC)\n"
 endif
@@ -103,13 +97,9 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🛟 safe · apply del home solo si no hay nada que perder$(NC)\n"
 	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
+	@$(DAILY_SH) lose
 	@set -euo pipefail; \
 	source="$$($(DAILY_SH) source)"; \
-	files="$$($(CHEZMOI) --color=false status -S "$$source" | $(DAILY_SH) lose-paths)"; \
-	if [ -n "$$files" ]; then \
-		printf '%s\n' "$$files"; \
-		exit 1; \
-	fi; \
 	profile="$$($(DAILY_SH) profile)"; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
 		printf "  ▶ [dry-run] env CHEZMOI_PROFILE=%s $(CHEZMOI) apply -S %s\n" "$$profile" "$$source"; \

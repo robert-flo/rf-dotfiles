@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  printf 'usage: %s profile|sudo-state|source|lose-paths|script-paths\n' "$(basename "$0")" >&2
+  printf 'usage: %s profile|sudo-state|source|lose|lose-paths|script-paths\n' "$(basename "$0")" >&2
   exit 2
 }
 
@@ -58,11 +58,23 @@ rf_paths() {
   done
 }
 
+# Imprime los archivos que se perderían y sale 1 si hay alguno.
+rf_lose() {
+  local source_dir paths
+  source_dir="$("${CHEZMOI:-chezmoi}" source-path)"
+  paths="$("${CHEZMOI:-chezmoi}" --color=false status -S "$source_dir" | rf_paths lose)"
+  if [[ -n "$paths" ]]; then
+    printf '%s\n' "$paths"
+    exit 1
+  fi
+}
+
 [[ $# -ge 1 ]] || usage
 case "$1" in
   profile) rf_profile ;;
   sudo-state) rf_sudo_state ;;
   source) "${CHEZMOI:-chezmoi}" source-path ;;
+  lose) rf_lose ;;
   lose-paths) rf_paths lose ;;
   script-paths) rf_paths script ;;
   *) usage ;;
