@@ -53,6 +53,30 @@ assert_not_contains() {
   fi
 }
 
+assert_true() {
+  local msg="$1"
+  shift
+  if "$@"; then
+    PASS_COUNT=$((PASS_COUNT + 1))
+    printf '  [PASS] %s\n' "$msg"
+  else
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    printf '  [FAIL] %s\n' "$msg" >&2
+  fi
+}
+
+assert_false() {
+  local msg="$1"
+  shift
+  if "$@"; then
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    printf '  [FAIL] %s\n' "$msg" >&2
+  else
+    PASS_COUNT=$((PASS_COUNT + 1))
+    printf '  [PASS] %s\n' "$msg"
+  fi
+}
+
 finish() {
   printf '  %s passed, %s failed\n' "$PASS_COUNT" "$FAIL_COUNT"
   if [[ "$FAIL_COUNT" -ne 0 ]]; then
@@ -93,16 +117,26 @@ write_fake_chezmoi() {
 set -euo pipefail
 printf 'profile=%s args=%s\n' "${CHEZMOI_PROFILE-}" "$*" >> "${CHEZMOI_LOG:?}"
 cmd=""
+src=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --color=*|--no-pager|--file) shift ;;
-    -S) shift 2 ;;
+    -S) src="$2"; shift 2 ;;
     *) cmd="$1"; shift; break ;;
   esac
 done
+# Como el chezmoi real: una fuente que no existe es un error, no una lista vacía.
+if [[ "$cmd" == status || "$cmd" == diff ]] && [[ -n "$src" && ! -d "$src" ]]; then
+  printf 'chezmoi: stat %s: no such file or directory\n' "$src" >&2
+  exit 1
+fi
 case "$cmd" in
   source-path) printf '%s\n' "${CHEZMOI_SOURCE:?}" ;;
   status)
+    if [[ -n "${CHEZMOI_STATUS_FAIL:-}" ]]; then
+      printf 'chezmoi: boom simulado\n' >&2
+      exit "$CHEZMOI_STATUS_FAIL"
+    fi
     if [[ -f "${CHEZMOI_STATUS_FILE:-}" ]]; then
       cat "$CHEZMOI_STATUS_FILE"
     fi
@@ -331,5 +365,127 @@ assert_contains "$root_log" "execute-template" "root dispara execute-template"
 assert_contains "$root_log" "$tmp/prod/$packages_tmpl" "root dispara el script de paquetes de la copia de producción"
 assert_contains "$root_log" "$tmp/prod/$tools_tmpl" "root dispara el script de herramientas y el hook"
 assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "root no aplica el árbol del home"
+
+# --- sin ~/.local/share/chezmoi (niri-classic): source-path apunta a un directorio inexistente ---
+# El invocador es un clon de rf-dotfiles (trae .chezmoiignore.tmpl): de ahí se cae.
+git -C "$tmp/invoker" reset -q --hard "$old_inv"
+: > "$tmp/invoker/.chezmoiignore.tmpl"
+export CHEZMOI_SOURCE="$tmp/no-existe/chezmoi"
+export RF_CENTRAL_SOURCE="$tmp/central-ausente"
+cat > "$tmp/status.txt" << 'EOF_STATUS'
+ M .config/zed/settings.json
+EOF_STATUS
+: > "$CHEZMOI_LOG"
+
+out="$(run_make "$tmp/invoker" morning 2>&1)"
+assert_contains "$out" "commit: " "sin enlace de chezmoi, morning funciona con el clon invocador"
+assert_contains "$out" "uso $tmp/invoker" "morning avisa que usa el clon invocador"
+assert_contains "$out" ".config/zed/settings.json" "morning sigue listando lo que se pisaría"
+assert_contains "$out" "$tmp/no-existe/chezmoi) no existe" "morning dice qué fuente declarada no existe"
+
+: > "$CHEZMOI_LOG"
+run_make "$tmp/invoker" status >/dev/null 2>&1
+assert_contains "$(cat "$CHEZMOI_LOG")" "-S $tmp/invoker" "sin enlace, status lee el clon invocador"
+: > "$CHEZMOI_LOG"
+run_make "$tmp/invoker" diff >/dev/null 2>&1
+assert_contains "$(cat "$CHEZMOI_LOG")" "-S $tmp/invoker" "sin enlace, diff lee el clon invocador"
+
+set +e
+out="$(run_make "$tmp/invoker" lose 2>/dev/null)"
+code=$?
+set -e
+assert_contains "$out" ".config/zed/settings.json" "sin enlace, lose lista los archivos desde el clon invocador"
+assert_ne "0" "$code" "sin enlace, lose sale distinto de cero con archivos"
+
+run_make "$tmp/invoker" pull >/dev/null 2>&1
+assert_eq "$remote_tip" "$(git -C "$tmp/invoker" rev-parse HEAD)" "sin enlace, pull actualiza el clon invocador"
+
+# Sin clon invocador válido cae a la copia central.
+mkdir -p "$tmp/central" "$tmp/plain"
+: > "$tmp/central/.chezmoiignore.tmpl"
+export RF_CENTRAL_SOURCE="$tmp/central"
+: > "$CHEZMOI_LOG"
+run_make "$tmp/plain" status >/dev/null 2>&1 || true
+rm -f "$tmp/invoker/.chezmoiignore.tmpl"
+assert_contains "$(cat "$CHEZMOI_LOG")" "-S $tmp/central" "si el invocador no es un clon de dotfiles, usa la copia central"
+
+# --- lose no miente cuando chezmoi falla ---
+export CHEZMOI_SOURCE="$tmp/prod"
+export CHEZMOI_STATUS_FAIL=7
+: > "$tmp/status.txt"
+set +e
+out="$(run_make "$tmp/invoker" lose 2>&1)"
+code=$?
+set -e
+assert_eq "2" "$code" "make lose con chezmoi roto falla (make propaga el 3 como Error 3 = exit 2 de make)"
+assert_contains "$out" "chezmoi status falló (rc=7)" "lose dice el error real de chezmoi y su rc"
+assert_contains "$out" "boom simulado" "lose muestra el stderr de chezmoi"
+assert_not_contains "$out" "✓ nada que perder" "lose no declara «nada que perder» si chezmoi falló"
+set +e
+CHEZMOI_STATUS_FAIL=7 "$REPO_ROOT/scripts/rf-make-daily.sh" lose >/dev/null 2>&1
+code=$?
+set -e
+assert_eq "3" "$code" "rf-make-daily.sh lose usa el código 3 para el error de chezmoi (distinto del 1 de «hay archivos»)"
+
+printf 'MM .config/zed/settings.json\n' > "$tmp/status.txt"
+unset CHEZMOI_STATUS_FAIL
+set +e
+"$REPO_ROOT/scripts/rf-make-daily.sh" lose >/dev/null 2>&1
+code=$?
+set -e
+assert_eq "1" "$code" "con archivos que se pisarían, lose conserva el código 1"
+
+# Con todo roto (sin fuente en ningún lado) lose falla con mensaje, sin lista inventada.
+export CHEZMOI_SOURCE="$tmp/no-existe/chezmoi"
+export RF_CENTRAL_SOURCE="$tmp/central-ausente"
+: > "$CHEZMOI_ACTIONS"
+set +e
+out="$(cd "$tmp/plain" && "$REPO_ROOT/scripts/rf-make-daily.sh" lose 2>&1)"
+code=$?
+set -e
+assert_eq "3" "$code" "sin ninguna fuente, lose sale con 3"
+assert_contains "$out" "no encuentro la fuente de chezmoi" "sin ninguna fuente, lose explica qué falta"
+assert_not_contains "$out" ".config/zed/settings.json" "sin ninguna fuente, lose no lista archivos"
+set +e
+out="$(run_make "$tmp/plain" safe 2>&1)"
+code=$?
+set -e
+assert_ne "0" "$code" "make safe se detiene si lose no pudo averiguar nada"
+assert_not_contains "$(cat "$CHEZMOI_ACTIONS")" "apply" "make safe no aplica si lose falló"
+
+# --- enlace ~/.local/share/chezmoi -> copia central ---
+export RF_CENTRAL_SOURCE="$tmp/central"
+export RF_SOURCE_LINK="$tmp/home/.local/share/chezmoi"
+export CHEZMOI_PROFILE=clavis
+DRY_RUN=1 "$REPO_ROOT/scripts/rf-make-daily.sh" source-link > "$tmp/link.out"
+assert_contains "$(cat "$tmp/link.out")" "[dry-run] ln -s $tmp/central $RF_SOURCE_LINK" "DRY_RUN=1 solo dice qué enlace crearía"
+assert_false "DRY_RUN=1 no crea ni el directorio padre del enlace" test -e "$tmp/home"
+"$REPO_ROOT/scripts/rf-make-daily.sh" source-link >/dev/null
+assert_eq "$tmp/central" "$(readlink "$RF_SOURCE_LINK")" "source-link crea el enlace hacia la copia central"
+"$REPO_ROOT/scripts/rf-make-daily.sh" source-link >/dev/null
+assert_eq "$tmp/central" "$(readlink "$RF_SOURCE_LINK")" "source-link es idempotente"
+
+rm -f "$RF_SOURCE_LINK"
+mkdir -p "$RF_SOURCE_LINK"
+printf 'mio\n' > "$RF_SOURCE_LINK/archivo"
+"$REPO_ROOT/scripts/rf-make-daily.sh" source-link >/dev/null
+assert_true "source-link nunca pisa un directorio real" test -d "$RF_SOURCE_LINK" -a ! -L "$RF_SOURCE_LINK" -a -f "$RF_SOURCE_LINK/archivo"
+
+rm -rf "$RF_SOURCE_LINK"
+ln -s "$tmp/otro-lado-roto" "$RF_SOURCE_LINK"
+"$REPO_ROOT/scripts/rf-make-daily.sh" source-link >/dev/null
+assert_eq "$tmp/otro-lado-roto" "$(readlink "$RF_SOURCE_LINK")" "source-link respeta un enlace existente aunque esté roto"
+
+rm -f "$RF_SOURCE_LINK"
+out="$(DRY_RUN=1 run_make "$tmp/invoker" apply 2>&1)"
+assert_contains "$out" "[dry-run] ln -s $tmp/central $RF_SOURCE_LINK" "DRY_RUN apply anuncia el enlace"
+assert_false "DRY_RUN apply no crea el enlace" test -e "$RF_SOURCE_LINK" -o -L "$RF_SOURCE_LINK"
+
+# Los otros perfiles (omarchy, nyxuri) no reciben el enlace.
+for other in omarchy nyxuri; do
+  CHEZMOI_PROFILE="$other" "$REPO_ROOT/scripts/rf-make-daily.sh" source-link >/dev/null
+  assert_false "el perfil $other no recibe el enlace" test -e "$RF_SOURCE_LINK" -o -L "$RF_SOURCE_LINK"
+done
+unset RF_SOURCE_LINK RF_CENTRAL_SOURCE
 
 finish
