@@ -157,26 +157,22 @@ def launch(args, extra):
 
 
 def clean(browser):
-    targets = [ROOT / browser] if browser else [ROOT / name for name in BROWSERS]
-    if any(running_instance(t) for t in targets):
+    # Sin -b se borra toda la carpeta raíz (también restos de versiones anteriores del lanzador).
+    target = ROOT / browser if browser else ROOT
+    if any(running_instance(ROOT / name) for name in BROWSERS):
         log("hay un chrome-h264 abierto; cerralo antes de limpiar")
         return 1
-    done = False
-    for target in targets:
-        if target.exists():
-            shutil.rmtree(target)
-            log(f"borrado {target}")
-            done = True
-    if not browser and ROOT.is_dir() and not any(ROOT.iterdir()):
-        ROOT.rmdir()
-    if not done:
+    if target.exists():
+        shutil.rmtree(target)
+        log(f"borrado {target}")
+    else:
         log("no había nada que limpiar")
     return 0
 
 
 def main():
     ap = argparse.ArgumentParser(description="Navegador Chromium con H.264 forzado en YouTube (opt-in). Argumentos extra (URLs, flags) se pasan al navegador.")
-    ap.add_argument("-b", "--browser", choices=sorted(BROWSERS), default=None, help="navegador (default: stable)")
+    ap.add_argument("-b", "--browser", choices=sorted(BROWSERS), default=None, help="navegador (al lanzar: stable por defecto; con --clean: sin -b se borran todos)")
     ap.add_argument("--clean", action="store_true", help="borra los perfiles dedicados (los de -b, o todos) y sale")
     ap.add_argument("--autoplay", action="store_true", help="permite reproducción automática (pruebas)")
     ap.add_argument("-v", "--verbose", action="store_true", help="muestra dónde se inyecta el script")

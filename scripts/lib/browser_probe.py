@@ -342,13 +342,13 @@ def pss_mib(pid):
 
 
 def process_census(root):
-    kinds, rss = {}, 0.0
+    kinds, pss = {}, 0.0
     for pid in tree_ticks(root):
         kind = proc_type(pid)
         if kind:
             kinds[kind] = kinds.get(kind, 0) + 1
-            rss += pss_mib(pid)
-    return kinds, round(rss, 1)
+            pss += pss_mib(pid)
+    return kinds, round(pss, 1)
 
 
 def responds(page):
@@ -364,31 +364,32 @@ def responds(page):
 
 def cmd_procs(a):
     root = root_pid(a.profile)
-    pages = [cdp.new_page(a.port, f"{a.site}/p{i}.html") for i in range(1, 4)]
+    pages = [cdp.new_page(a.port, f"{a.site}/p{i}.html") for i in (1, 2, 3)]
     pages.append(cdp.new_page(a.port, f"{a.other}/other.html"))
     time.sleep(a.settle)
-    kinds, rss = process_census(root)
-    victim = pages[0]
+    kinds, pss = process_census(root)
+    victim, same_site, other_site = pages[0], pages[1:3], pages[3]
     ws = cdp.WS(victim["webSocketDebuggerUrl"])
     ws.sock.settimeout(3)
     try:
         ws.call("Page.crash")
     except (OSError, TimeoutError, RuntimeError):
         pass  # el renderer muere antes de contestar
-    time.sleep(2)
-    others = pages[1:]
-    alive = sum(1 for pg in others if responds(pg))
+    ws.close()
+    time.sleep(a.after_crash)
+    same_alive = sum(1 for pg in same_site if responds(pg))
+    other_alive = responds(other_site)
     print(
         json.dumps(
             {
                 "processes": kinds,
                 "renderers": kinds.get("renderer", 0),
-                "pss_mib": rss,
+                "pss_mib": pss,
                 "tabs_total": len(pages),
-                "others_alive_after_crash": alive,
-                "others_total": len(others),
-                "same_site_alive_after_crash": sum(1 for pg in others[:2] if responds(pg)),
-                "browser_alive_after_crash": responds(others[-1]) or bool(gpu_pids(a.port)),
+                "others_total": len(pages) - 1,
+                "others_alive_after_crash": same_alive + int(other_alive),
+                "same_site_alive_after_crash": same_alive,
+                "browser_alive_after_crash": other_alive or responds(same_site[0]),
             }
         )
     )
@@ -415,7 +416,8 @@ def main():
             s.add_argument("--profile", required=True)
             s.add_argument("--site", required=True, help="origen de las 3 pestañas del mismo sitio")
             s.add_argument("--other", required=True, help="origen de la pestaña de otro sitio")
-            s.add_argument("--settle", type=float, default=5)
+            s.add_argument("--settle", type=float, default=5, help="segundos de espera antes de contar procesos")
+            s.add_argument("--after-crash", type=float, default=2, help="segundos de espera tras tumbar la pestaña")
     a = p.parse_args()
     return {"gpu": cmd_gpu, "video": cmd_video, "typing": cmd_typing, "stable": cmd_stable, "procs": cmd_procs}[a.cmd](a)
 

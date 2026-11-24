@@ -111,6 +111,7 @@ assert_eq "2" "$rc" "un navegador desconocido termina con 2"
 check "--clean -b edge borra solo edge" [ ! -e "$CHROME_H264_PROFILE/edge" ]
 check "--clean -b edge deja stable" [ -d "$CHROME_H264_PROFILE/stable" ]
 check "crea el perfil dedicado" [ -d "$CHROME_H264_PROFILE/stable" ]
+mkdir -p "$CHROME_H264_PROFILE/Default"   # resto de una versión anterior (el perfil era la raíz)
 "$LAUNCHER" --clean 2> "$TMP_WORK/err"
 check "--clean borra todos los perfiles y la carpeta" [ ! -e "$CHROME_H264_PROFILE" ]
 "$LAUNCHER" --clean 2> "$TMP_WORK/err"

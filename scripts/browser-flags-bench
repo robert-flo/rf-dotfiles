@@ -210,7 +210,7 @@ free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",
 
 HTTP_PID=""
 stop_http() {
-  [[ -z "$HTTP_PID" ]] || kill "$HTTP_PID" 2> /dev/null || true
+  [[ -z "$HTTP_PID" ]] || { kill "$HTTP_PID" 2> /dev/null || true; wait "$HTTP_PID" 2> /dev/null || true; }
   HTTP_PID=""
 }
 
@@ -306,11 +306,12 @@ run_typing() {
 cmd_process_model() {
   local http_port result i
   http_port="$(free_port)"
-  for i in 1 2 3; do printf '<title>site-%s</title><body>%s</body>\n' "$i" "$i" > "$WORK/p$i.html"; done
-  printf '<title>other</title><body>otro sitio</body>\n' > "$WORK/other.html"
-  python3 -m http.server "$http_port" --bind 127.0.0.1 --directory "$WORK" > /dev/null 2>&1 &
+  mkdir -p "$WORK/site"
+  for i in 1 2 3; do printf '<title>site-%s</title><body>%s</body>\n' "$i" "$i" > "$WORK/site/p$i.html"; done
+  printf '<title>other</title><body>otro sitio</body>\n' > "$WORK/site/other.html"
+  python3 -m http.server "$http_port" --bind 127.0.0.1 --directory "$WORK/site" > /dev/null 2>&1 &
   HTTP_PID=$!
-  for _ in $(seq 1 40); do curl -fs "http://127.0.0.1:$http_port/p1.html" > /dev/null 2>&1 && break; sleep 0.25; done
+  curl -fs --retry 40 --retry-delay 0 --retry-connrefused "http://127.0.0.1:$http_port/p1.html" > /dev/null || die "el servidor HTTP de prueba no arrancó"
   log "${C_CYAN}process-model${C_RST}: 3 pestañas del mismo sitio + 1 de otro, y se tumba una..."
   launch_browser about:blank
   ensure_version

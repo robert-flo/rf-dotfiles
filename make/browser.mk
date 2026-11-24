@@ -54,11 +54,16 @@ endif
 		for pair in $(BROWSER_CHECKS); do \
 			file="$(CURDIR)/dot_config/$${pair%%:*}"; bin="$${pair#*:}"; \
 			[ -x "$$bin" ] || { printf "  - skip %s (no %s)\n" "$${pair%%:*}" "$$bin"; continue; }; \
-			case "$$file" in *.tmpl) \
-				CHEZMOI_PROFILE=clavis chezmoi execute-template < "$$file" > "$$tmp/$$(basename "$${file%.tmpl}")"; \
-				file="$$tmp/$$(basename "$${file%.tmpl}")" ;; \
-			esac; \
-			"$(CURDIR)/scripts/browser-flags-bench" check-flags -b "$$bin" -f "$$file" || rc=1; \
+			profiles="-"; case "$$file" in *.tmpl) profiles="clavis omarchy" ;; esac; \
+			for profile in $$profiles; do \
+				flags="$$file"; \
+				if [ "$$profile" != "-" ]; then \
+					flags="$$tmp/$$profile-$$(basename "$${file%.tmpl}")"; \
+					CHEZMOI_PROFILE="$$profile" chezmoi execute-template < "$$file" > "$$flags" || { rc=1; continue; }; \
+					printf "  (perfil %s)\n" "$$profile"; \
+				fi; \
+				"$(CURDIR)/scripts/browser-flags-bench" check-flags -b "$$bin" -f "$$flags" || rc=1; \
+			done; \
 		done; \
 		exit $$rc; \
 	fi
