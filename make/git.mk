@@ -10,14 +10,14 @@ BASE_BRANCH ?= master
 help-git: ## Show Git status targets
 	@printf "\n"
 	@printf "$(CYAN)Git$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make git-status$(NC)           Show branch, drift vs $(GIT_REMOTE)/$(BASE_BRANCH), and worktree state\n"
 
 git-status: ## Show current repository state
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)📊 git-status · repository overview$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -49,7 +49,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • run full check:       $(BLUE)make check$(NC)\n"
 	@printf "  • inspect dotfile diff: $(BLUE)make diff$(NC)\n\n"
 endif

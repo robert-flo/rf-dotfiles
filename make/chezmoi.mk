@@ -13,7 +13,7 @@ CHEZMOI_PROFILES ?= clavis nyxuri omarchy
 help-chezmoi: ## Show Chezmoi lifecycle targets
 	@printf "\n"
 	@printf "$(CYAN)Chezmoi Lifecycle$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make status$(NC)               Show pending changes against the chezmoi source copy\n"
 	@printf "  $(GREEN)make diff$(NC)                 Show full diff against the chezmoi source copy\n"
 	@printf "  $(GREEN)make apply$(NC)                Full apply for current user: asks sudo once, re-runs all scripts, overwrites local changes (see make lose) (DRY_RUN=1)\n"
@@ -28,13 +28,13 @@ status: ## Show chezmoi status using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)📊 status · chezmoi drift (copia de producción)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; source="$$($(DAILY_SH) source --canonical)"; $(EXEC) $(CHEZMOI_BIN) status -S "$$source"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • inspect full diff:    $(BLUE)make diff$(NC)\n"
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n\n"
 endif
@@ -43,13 +43,13 @@ diff: ## Show chezmoi diff using the production source copy
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; source="$$($(DAILY_SH) source --canonical)"; $(EXEC) $(CHEZMOI_BIN) --no-pager diff -S "$$source"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n"
 	@printf "  • verify templates:     $(BLUE)make verify$(NC)\n\n"
 endif
@@ -58,13 +58,13 @@ apply: ## Full apply using repo as source: sudo once, re-runs all scripts, overw
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply · chezmoi apply (-S $(CURDIR))$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@CHEZMOI_BIN="$(CHEZMOI_BIN)" $(DAILY_SH) apply "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
 	@printf "  • apply without root tasks / without --force:   $(BLUE)make safe$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
@@ -75,13 +75,13 @@ apply-clavis apply-nyxuri apply-omarchy: apply-%: ## Full apply for a specific C
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚀 apply-$* · chezmoi apply (CHEZMOI_PROFILE=$*)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@CHEZMOI_BIN="$(CHEZMOI_BIN)" $(DAILY_SH) apply "$(CURDIR)" "$*"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • apply overwrites local changes; see them first: $(BLUE)make lose$(NC)\n"
 	@printf "  • apply without root tasks / without --force:   $(BLUE)make safe$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
@@ -92,13 +92,13 @@ managed: ## List chezmoi managed paths
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)📂 managed · tracked paths (-S $(CURDIR))$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@$(EXEC) $(CHEZMOI_BIN) managed -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • list ignored paths:   $(BLUE)make ignored$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
@@ -107,13 +107,13 @@ ignored: ## List chezmoi ignored paths
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🚫 ignored · excluded paths (-S $(CURDIR))$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@$(EXEC) $(CHEZMOI_BIN) ignored -S "$(CURDIR)"
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • list managed paths:   $(BLUE)make managed$(NC)\n"
 	@printf "  • verify exclusions:    $(BLUE)make verify$(NC)\n\n"
 endif
@@ -122,7 +122,7 @@ verify: ## Verify .chezmoiignore.tmpl rendering and Makefile/make/* exclusion ac
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🛡️  verify · template & exclusion checks$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -147,7 +147,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • check drift:          $(BLUE)make status$(NC)\n"
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n\n"
 endif
