@@ -45,7 +45,21 @@ ifndef EMBEDDED
 	@printf "$(CYAN)🔄 diff · chezmoi changes (copia de producción)$(NC)\n"
 	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
-	@set -euo pipefail; source="$$($(DAILY_SH) source --canonical)"; $(EXEC) $(CHEZMOI_BIN) --no-pager diff -S "$$source"
+	@set -euo pipefail; \
+	source="$$($(DAILY_SH) source --canonical)"; \
+	if command -v hunk >/dev/null 2>&1; then \
+		set -- --pager "hunk pager"; \
+		shown='--pager "hunk pager"'; \
+	else \
+		printf '$(YELLOW)  hunk no está en PATH. Instálalo para una mejor experiencia en los diffs.$(NC)\n'; \
+		set -- --no-pager; \
+		shown='--no-pager'; \
+	fi; \
+	if [ "$(DRY_RUN)" = "1" ]; then \
+		printf '  ▶ [dry-run] %s %s diff -S %s\n' "$(CHEZMOI_BIN)" "$$shown" "$$source"; \
+	else \
+		$(CHEZMOI_BIN) "$$@" diff -S "$$source"; \
+	fi
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
