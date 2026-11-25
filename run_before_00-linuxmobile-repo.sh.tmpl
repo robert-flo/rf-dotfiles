@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Repo pacman [linuxmobile], de donde sale monocode-git.
+# Idempotente: no duplica la sección ni reescribe el mirrorlist si ya coincide.
+# Corre en cada apply, antes de instalar paquetes.
+set -euo pipefail
+
+conf="${LINUXMOBILE_PACMAN_CONF:-/etc/pacman.conf}"
+mirror="${LINUXMOBILE_MIRRORLIST:-/etc/pacman.d/linuxmobile-mirrorlist}"
+server='Server = https://github.com/linuxmobile/linuxmobile-PKGBUILD/releases/download/repo'
+
+if [[ "$conf" == /etc/* ]]; then
+  if [[ $EUID -eq 0 ]]; then
+    sudo_cmd=()
+  elif sudo -n true 2>/dev/null; then
+    sudo_cmd=(sudo)
+  elif [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+    echo "==> [chezmoi] ERROR: repo linuxmobile sin sudo." >&2
+    exit 1
+  else
+    echo "==> [chezmoi] Sin sudo: el repo linuxmobile queda para el próximo apply con sudo."
+    exit 0
+  fi
+else
+  sudo_cmd=()
+fi
+
+changed=0
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+printf '%s\n' "$server" >"$tmp"
+
+if [[ ! -f "$mirror" ]] || ! "${sudo_cmd[@]}" cmp -s "$tmp" "$mirror"; then
+  "${sudo_cmd[@]}" install -d -m 755 "$(dirname "$mirror")"
+  "${sudo_cmd[@]}" install -m 644 "$tmp" "$mirror"
+  echo "==> [chezmoi] $mirror"
+  changed=1
+else
+  echo "==> [chezmoi] $mirror ya estaba"
+fi
+
+if "${sudo_cmd[@]}" grep -q '^\[linuxmobile\]' "$conf"; then
+  echo "==> [chezmoi] $conf ya incluye [linuxmobile]"
+else
+  "${sudo_cmd[@]}" tee -a "$conf" >/dev/null <<'EOF'
+
+[linuxmobile]
+SigLevel = Optional DatabaseOptional
+Include = /etc/pacman.d/linuxmobile-mirrorlist
+EOF
+  echo "==> [chezmoi] $conf += [linuxmobile]"
+  changed=1
+fi
+
+if [[ "$changed" -eq 1 && "$conf" == /etc/pacman.conf ]]; then
+  "${sudo_cmd[@]}" pacman -Sy --noconfirm
+fi

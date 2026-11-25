@@ -14,7 +14,7 @@ help-packages: ## Show package manifest targets
 	@printf "  $(GREEN)make packages-check$(NC)       Validate .chezmoidata/packages.json schema & duplicates\n"
 	@printf "  $(GREEN)make packages-summary$(NC)     Show package counts per repository channel\n"
 	@printf "  $(GREEN)make packages-missing$(NC)     List declared packages not installed on this host\n"
-	@printf "  $(GREEN)make stack-update$(NC)        Upgrade agy, cursor-agent, cursor-bin, antigravity, antigravity-ide, grok-bot (DRY_RUN=1)\n"
+	@printf "  $(GREEN)make stack-update$(NC)        Upgrade agy, cursor-agent, opencode, cursor-bin, antigravity, antigravity-ide, grok-bot, monocode-git (DRY_RUN=1)\n"
 
 packages-check: ## Validate .chezmoidata/packages.json with jq
 ifndef EMBEDDED
@@ -100,10 +100,10 @@ ifndef EMBEDDED
 	@printf "  • validate manifest:    $(BLUE)make packages-check$(NC)\n\n"
 endif
 
-stack-update: ## Upgrade agy, cursor-agent and the desktop stack (cursor-bin, antigravity, antigravity-ide, grok-bot)
+stack-update: ## Upgrade agy, cursor-agent, opencode and the desktop stack (cursor-bin, antigravity, antigravity-ide, grok-bot, monocode-git)
 ifndef EMBEDDED
 	@printf "\n"
-	@printf "$(CYAN)⬆ stack-update · agy, cursor-agent, cursor, antigravity, grok-bot$(NC)\n"
+	@printf "$(CYAN)⬆ stack-update · agy, cursor-agent, opencode, cursor, antigravity, grok-bot, monocode$(NC)\n"
 	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \

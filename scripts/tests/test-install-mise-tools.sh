@@ -119,7 +119,7 @@ reset_state() {
   : > "$MISE_LOG"
 }
 
-for pair in "run_onchange_after_install-helix-tools.sh:oxfmt" "run_onchange_after_install-hunk.sh:hunk"; do
+for pair in "run_onchange_after_install-helix-tools.sh:oxfmt" "run_onchange_after_install-hunk.sh:hunk" "run_onchange_after_install-opencode.sh:opencode"; do
   script="${pair%%:*}"
   tool="${pair##*:}"
   render "$script"
