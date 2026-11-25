@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Trae lo último del stack de agentes y lo notifica si algo cambió.
+#   agy            mise: antigravity-cli
+#   cursor-agent   mise
+#   cursor-bin, antigravity, grok-bot   pacman (repo omarchy)
+#   antigravity-ide                     pacman si está en un repo, si no AUR
+# Uso: rf-stack-update
+# El timer de usuario lo corre cada hora. Sin cambios y sin fallos, no notifica.
+set -euo pipefail
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  sed -n '2,8p' "$0"
+  exit 0
+fi
+
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
+lock="$XDG_RUNTIME_DIR/rf-stack-update.lock"
+mkdir -p "$XDG_RUNTIME_DIR"
+exec 9>"$lock"
+if ! flock -w 120 9; then
+  printf 'rf-stack-update: otra corrida sigue en curso\n' >&2
+  exit 1
+fi
+
+if [[ -t 0 && -t 1 ]]; then
+  sudo_cmd=(sudo)
+else
+  sudo_cmd=(sudo -n)
+fi
+
+updated=()
+failed=()
+
+note_update() {
+  updated+=("$1  $2 → $3")
+  printf '%-18s %s → %s\n' "$1" "$2" "$3"
+}
+
+note_same() {
+  printf '%-18s %s\n' "$1" "$2"
+}
+
+note_skip() {
+  printf '%-18s %s\n' "$1" "$2"
+}
+
+note_fail() {
+  failed+=("$1")
+  printf '%-18s FALLÓ: %s\n' "$1" "$2" >&2
+}
+
+notify() {
+  local urgency=$1 title=$2 body=$3
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a rf-stack-update -u "$urgency" "$title" "$body" || true
+}
+
+upgrade_mise() {
+  local tool=$1 label=$2 before after
+  if ! command -v mise >/dev/null 2>&1; then
+    note_fail "$label" "mise no está en PATH"
+    return 0
+  fi
+  before="$(mise current "$tool" 2>/dev/null || true)"
+  if [[ -z "$before" ]]; then
+    note_skip "$label" "no instalado"
+    return 0
+  fi
+  if ! mise upgrade "$tool"; then
+    note_fail "$label" "mise upgrade salió distinto de 0"
+    return 0
+  fi
+  after="$(mise current "$tool" 2>/dev/null || true)"
+  if [[ -n "$after" && "$after" != "$before" ]]; then
+    note_update "$label" "$before" "$after"
+  else
+    note_same "$label" "${after:-$before}"
+  fi
+}
+
+refresh_pacman() {
+  if "${sudo_cmd[@]}" pacman -Sy --noconfirm; then
+    return 0
+  fi
+  note_fail "pacman -Sy" "no se pudo refrescar la base"
+  return 1
+}
+
+pkg_ver() {
+  pacman -Q "$1" 2>/dev/null | awk '{print $2}' || true
+}
+
+remote_ver() {
+  "$1" -Si "$2" 2>/dev/null | awk '/^Version[[:space:]]*:/{print $3; exit}' || true
+}
+
+upgrade_pkg() {
+  local pkg=$1 before remote
+  before="$(pkg_ver "$pkg")"
+  if [[ -z "$before" ]]; then
+    note_skip "$pkg" "no instalado"
+    return 0
+  fi
+  remote="$(remote_ver pacman "$pkg")"
+  if [[ -n "$remote" ]]; then
+    if [[ "$(vercmp "$remote" "$before")" -gt 0 ]]; then
+      if "${sudo_cmd[@]}" pacman -S --noconfirm "$pkg"; then
+        note_update "$pkg" "$before" "$(pkg_ver "$pkg")"
+      else
+        note_fail "$pkg" "pacman -S falló"
+      fi
+    else
+      note_same "$pkg" "$before"
+    fi
+    return 0
+  fi
+  if ! command -v yay >/dev/null 2>&1; then
+    note_fail "$pkg" "no está en los repos y yay no está"
+    return 0
+  fi
+  remote="$(remote_ver yay "$pkg")"
+  if [[ -z "$remote" ]]; then
+    note_fail "$pkg" "sin versión en pacman ni en AUR"
+    return 0
+  fi
+  if [[ "$(vercmp "$remote" "$before")" -le 0 ]]; then
+    note_same "$pkg" "$before"
+    return 0
+  fi
+  if yay -S --noconfirm --answerclean None --answerdiff None --answeredit None "$pkg"; then
+    note_update "$pkg" "$before" "$(pkg_ver "$pkg")"
+  else
+    note_fail "$pkg" "yay -S falló"
+  fi
+}
+
+upgrade_mise antigravity-cli agy
+upgrade_mise cursor-agent cursor-agent
+
+if refresh_pacman; then
+  upgrade_pkg cursor-bin
+  upgrade_pkg antigravity
+  upgrade_pkg grok-bot
+  upgrade_pkg antigravity-ide
+fi
+
+if ((${#updated[@]})); then
+  notify normal "Stack actualizado" "$(printf '%s\n' "${updated[@]}")"
+fi
+if ((${#failed[@]})); then
+  notify critical "Stack: falló una actualización" "$(printf '%s\n' "${failed[@]}")"
+  exit 1
+fi
+exit 0
