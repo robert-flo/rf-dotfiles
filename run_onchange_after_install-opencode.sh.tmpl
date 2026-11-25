@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Instala/actualiza opencode vía mise. Es un paquete npm: node va primero,
+# igual que oxfmt y hunk. Con RF_APPLY_FULL=1 un fallo real termina con exit != 0.
+set -euo pipefail
+
+echo "==> [chezmoi] Instalando/actualizando opencode vía mise para {{ .chezmoi.username }}..."
+
+if ! command -v mise >/dev/null 2>&1; then
+  echo "==> [chezmoi] Omitiendo instalación de opencode (mise no disponible)."
+  exit 0
+fi
+
+fail_or_warn() {
+  if [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+    echo "==> [chezmoi] ERROR: apply completo (make apply*): $1 (código $2)." >&2
+    exit 1
+  fi
+  echo "==> [chezmoi] Aviso: $1 (código $2); omitiendo para no bloquear chezmoi."
+  exit 0
+}
+
+if ! mise where node@latest >/dev/null 2>&1; then
+  echo "==> [chezmoi] Instalando node (prerrequisito de opencode)..."
+  status=0
+  mise install --quiet node@latest || status=$?
+  if [[ $status -ne 0 ]]; then
+    fail_or_warn "falló la instalación de node vía mise, prerrequisito de opencode" "$status"
+  fi
+fi
+
+status=0
+mise use -g --quiet opencode@latest || status=$?
+if [[ $status -ne 0 ]]; then
+  fail_or_warn "falló la instalación de opencode vía mise" "$status"
+fi

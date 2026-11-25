@@ -2,14 +2,15 @@
 # Trae lo último del stack de agentes y lo notifica si algo cambió.
 #   agy            mise: antigravity-cli
 #   cursor-agent   mise
-#   cursor-bin, antigravity, grok-bot   pacman (repo omarchy)
+#   opencode       mise; lo instala si falta
+#   cursor-bin, antigravity, grok-bot, monocode-git   pacman
 #   antigravity-ide                     pacman si está en un repo, si no AUR
 # Uso: rf-stack-update
 # El timer de usuario lo corre cada hora. Sin cambios y sin fallos, no notifica.
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  sed -n '2,8p' "$0"
+  sed -n '2,9p' "$0"
   exit 0
 fi
 
@@ -80,6 +81,47 @@ upgrade_mise() {
     note_update "$label" "$before" "$after"
   else
     note_same "$label" "${after:-$before}"
+  fi
+}
+
+ensure_mise() {
+  local tool=$1 label=$2 before after
+  if ! command -v mise >/dev/null 2>&1; then
+    note_fail "$label" "mise no está en PATH"
+    return 0
+  fi
+  before="$(mise current "$tool" 2>/dev/null || true)"
+  if [[ -z "$before" ]]; then
+    if ! mise install "$tool"; then
+      note_fail "$label" "mise install salió distinto de 0"
+      return 0
+    fi
+    after="$(mise current "$tool" 2>/dev/null || true)"
+    if [[ -n "$after" ]]; then
+      note_update "$label" "ausente" "$after"
+    else
+      note_fail "$label" "mise install no dejó versión"
+    fi
+    return 0
+  fi
+  upgrade_mise "$tool" "$label"
+}
+
+ensure_pkg() {
+  local pkg=$1 after
+  if [[ -n "$(pkg_ver "$pkg")" ]]; then
+    upgrade_pkg "$pkg"
+    return 0
+  fi
+  if "${sudo_cmd[@]}" pacman -S --noconfirm --needed "$pkg"; then
+    after="$(pkg_ver "$pkg")"
+    if [[ -n "$after" ]]; then
+      note_update "$pkg" "ausente" "$after"
+    else
+      note_fail "$pkg" "pacman -S no lo dejó instalado"
+    fi
+  else
+    note_fail "$pkg" "pacman -S falló"
   fi
 }
 
@@ -226,12 +268,14 @@ upgrade_pkg() {
 
 upgrade_mise antigravity-cli agy
 upgrade_mise cursor-agent cursor-agent
+ensure_mise opencode opencode
 
 if refresh_pacman; then
   upgrade_pkg cursor-bin
   upgrade_pkg antigravity
   upgrade_pkg grok-bot
   upgrade_pkg antigravity-ide
+  ensure_pkg monocode-git
 fi
 
 if ((${#updated[@]})); then

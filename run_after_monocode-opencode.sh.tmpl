@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Fija OpenCode como proveedor por defecto de MonoCode.
+# Corre en cada apply. Si MonoCode todavía no creó su base, no hace nada:
+# el apply siguiente, con la base ya creada, escribe las dos claves.
+# No versiona la base: solo default_provider y binary_paths.opencode.
+set -euo pipefail
+
+db="${MONOCODE_DB:-{{ .chezmoi.homeDir }}/.local/share/com.monocode.desktop/monocode.db.gpui.sqlite3}"
+shim="${MONOCODE_OPENCODE_BIN:-{{ .chezmoi.homeDir }}/.local/share/mise/shims/opencode}"
+
+if [[ ! -s "$db" ]]; then
+  echo "==> [chezmoi] MonoCode todavía no tiene base; el proveedor queda para cuando la cree."
+  exit 0
+fi
+
+status=0
+python3 - "$db" "$shim" <<'PY' || status=$?
+import json, sqlite3, sys
+
+db, shim = sys.argv[1], sys.argv[2]
+con = sqlite3.connect(db)
+try:
+    row = con.execute("select value from settings where key = 'workspace'").fetchone()
+except sqlite3.Error as exc:
+    print(f"==> [chezmoi] MonoCode: no se pudo leer settings ({exc})", file=sys.stderr)
+    sys.exit(2)
+if row is None:
+    print("==> [chezmoi] MonoCode: la base no tiene settings.workspace; no se toca.")
+    sys.exit(0)
+data = json.loads(row[0])
+prefs = data.setdefault("preferences", {})
+paths = prefs.get("binary_paths")
+if not isinstance(paths, dict):
+    paths = {}
+changed = False
+if prefs.get("default_provider") != "opencode":
+    prefs["default_provider"] = "opencode"
+    changed = True
+if paths.get("opencode") != shim:
+    paths["opencode"] = shim
+    prefs["binary_paths"] = paths
+    changed = True
+if not changed:
+    print("==> [chezmoi] MonoCode ya usa opencode.")
+    sys.exit(0)
+con.execute(
+    "update settings set value = ? where key = 'workspace'",
+    (json.dumps(data, separators=(",", ":")),),
+)
+con.commit()
+print("==> [chezmoi] MonoCode: proveedor por defecto opencode.")
+PY
+
+if [[ "$status" -ne 0 ]]; then
+  if [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+    echo "==> [chezmoi] ERROR: apply completo (make apply*): no se pudo fijar el proveedor de MonoCode (código $status)." >&2
+    exit "$status"
+  fi
+  echo "==> [chezmoi] Aviso: no se pudo fijar el proveedor de MonoCode (código $status)."
+  exit 0
+fi
+
+if pgrep -x monocode-gpui >/dev/null 2>&1; then
+  echo "==> [chezmoi] MonoCode está abierto: hay que cerrarlo y abrirlo para que tome el proveedor."
+fi
