@@ -112,12 +112,52 @@ aur_deps() {
   ' || true
 }
 
-dep_resolvable() {
+dep_name() {
   local name=$1
   name="${name%%<*}"
   name="${name%%>*}"
   name="${name%%=*}"
-  pacman -Si "$name" >/dev/null 2>&1
+  printf '%s\n' "$name"
+}
+
+# Arch llama "openssl" al OpenSSL 3. El AUR de antigravity-ide 2.8.0 pide "openssl-3".
+arch_dep_name() {
+  local name
+  name="$(dep_name "$1")"
+  if [[ "$name" == openssl-3 ]]; then
+    local ver
+    ver="$(pacman -Q openssl 2>/dev/null | awk '{print $2}')"
+    if [[ "$ver" == 3.* ]]; then
+      printf 'openssl\n'
+      return 0
+    fi
+  fi
+  printf '%s\n' "$name"
+}
+
+dep_resolvable() {
+  pacman -Si "$(dep_name "$1")" >/dev/null 2>&1
+}
+
+build_aur_renamed() {
+  local pkg=$1
+  shift
+  local dir rc rename from to
+  dir="$(mktemp -d)"
+  (
+    cd "$dir" || exit 1
+    yay -G "$pkg" >/dev/null || exit 1
+    cd "$pkg" || exit 1
+    for rename in "$@"; do
+      from="${rename%%=*}"
+      to="${rename#*=}"
+      sed -i "s/${from}/${to}/g" PKGBUILD
+    done
+    makepkg -si --noconfirm
+  )
+  rc=$?
+  rm -rf "$dir"
+  return "$rc"
 }
 
 upgrade_pkg() {
@@ -153,13 +193,28 @@ upgrade_pkg() {
     note_same "$pkg" "$before"
     return 0
   fi
-  local dep missing=()
+  local dep mapped missing=() renames=()
   while IFS= read -r dep; do
     [[ -n "$dep" ]] || continue
-    dep_resolvable "$dep" || missing+=("$dep")
+    mapped="$(arch_dep_name "$dep")"
+    if dep_resolvable "$mapped"; then
+      if [[ "$mapped" != "$(dep_name "$dep")" ]]; then
+        renames+=("$(dep_name "$dep")=$mapped")
+      fi
+    else
+      missing+=("$dep")
+    fi
   done < <(aur_deps "$pkg")
   if ((${#missing[@]})); then
     note_skip "$pkg" "AUR $remote pide ${missing[*]}, que no está en los repos; queda en $before"
+    return 0
+  fi
+  if ((${#renames[@]})); then
+    if build_aur_renamed "$pkg" "${renames[@]}"; then
+      note_update "$pkg" "$before" "$(pkg_ver "$pkg")"
+    else
+      note_fail "$pkg" "makepkg falló al renombrar ${renames[*]}"
+    fi
     return 0
   fi
   if yay -S --noconfirm --answerclean None --answerdiff None --answeredit None "$pkg"; then
