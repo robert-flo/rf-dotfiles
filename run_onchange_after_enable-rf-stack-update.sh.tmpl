@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Activa el timer de rf-stack-update cuando las unidades están en el home.
+# script hash: {{ include "dot_local/bin/executable_rf-stack-update" | sha256sum }}
+# service hash: {{ include "dot_config/systemd/user/rf-stack-update.service" | sha256sum }}
+# timer hash: {{ include "dot_config/systemd/user/rf-stack-update.timer" | sha256sum }}
+set -euo pipefail
+
+timer="{{ .chezmoi.homeDir }}/.config/systemd/user/rf-stack-update.timer"
+if [[ ! -f "$timer" ]]; then
+  exit 0
+fi
+if ! systemctl --user daemon-reload; then
+  printf 'rf-stack-update: sin systemd --user; el timer queda en disco\n'
+  exit 0
+fi
+systemctl --user enable rf-stack-update.timer

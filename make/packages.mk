@@ -5,7 +5,7 @@
 JQ ?= jq
 PACKAGES_FILE ?= $(CURDIR)/.chezmoidata/packages.json
 
-.PHONY: help-packages packages-check packages-summary packages-missing
+.PHONY: help-packages packages-check packages-summary packages-missing stack-update
 
 help-packages: ## Show package manifest targets
 	@printf "\n"
@@ -14,6 +14,7 @@ help-packages: ## Show package manifest targets
 	@printf "  $(GREEN)make packages-check$(NC)       Validate .chezmoidata/packages.json schema & duplicates\n"
 	@printf "  $(GREEN)make packages-summary$(NC)     Show package counts per repository channel\n"
 	@printf "  $(GREEN)make packages-missing$(NC)     List declared packages not installed on this host\n"
+	@printf "  $(GREEN)make stack-update$(NC)        Upgrade agy, cursor-agent, cursor-bin, antigravity, antigravity-ide, grok-bot (DRY_RUN=1)\n"
 
 packages-check: ## Validate .chezmoidata/packages.json with jq
 ifndef EMBEDDED
@@ -97,4 +98,21 @@ ifndef EMBEDDED
 	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • view counts:          $(BLUE)make packages-summary$(NC)\n"
 	@printf "  • validate manifest:    $(BLUE)make packages-check$(NC)\n\n"
+endif
+
+stack-update: ## Upgrade agy, cursor-agent and the desktop stack (cursor-bin, antigravity, antigravity-ide, grok-bot)
+ifndef EMBEDDED
+	@printf "\n"
+	@printf "$(CYAN)⬆ stack-update · agy, cursor-agent, cursor, antigravity, grok-bot$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
+endif
+	@set -euo pipefail; \
+	script="$(CURDIR)/dot_local/bin/executable_rf-stack-update"; \
+	if [ "$(DRY_RUN)" = "1" ]; then \
+		printf '  ▶ [dry-run] %s\n' "$$script"; \
+	else \
+		"$$script"; \
+	fi
+ifndef EMBEDDED
+	@printf "\n$(GREEN)  ✓ done$(NC)\n\n"
 endif

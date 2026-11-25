@@ -1,0 +1,11 @@
+[Unit]
+Description=Actualizar el stack de agentes cada hora
+
+[Timer]
+OnBootSec=2min
+OnCalendar=hourly
+Persistent=true
+Unit=rf-stack-update.service
+
+[Install]
+WantedBy=timers.target
