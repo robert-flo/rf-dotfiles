@@ -121,6 +121,7 @@ src=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --color=*|--no-pager|--file) shift ;;
+    --pager) shift 2 ;;
     -S) src="$2"; shift 2 ;;
     *) cmd="$1"; shift; break ;;
   esac
@@ -160,6 +161,30 @@ write_fake_sudo() {
 exit $code
 EOF
   chmod +x "$bin/sudo"
+}
+
+# Copia el PATH a un directorio y omite el binario hunk, para probar el aviso
+# aunque hunk esté instalado en el sistema. No toca la red.
+path_sin_hunk() {
+  local dest="$1" dir base f old_ifs
+  mkdir -p "$dest"
+  old_ifs="$IFS"
+  IFS=:
+  for dir in $PATH; do
+    [[ -d "$dir" ]] || continue
+    for f in "$dir"/*; do
+      [[ -e "$f" ]] || continue
+      base="${f##*/}"
+      if [[ "$base" == hunk ]]; then
+        continue
+      fi
+      if [[ -e "$dest/$base" ]]; then
+        continue
+      fi
+      ln -s "$f" "$dest/$base"
+    done
+  done
+  IFS="$old_ifs"
 }
 
 run_make() {
@@ -292,6 +317,53 @@ diff_log="$(cat "$CHEZMOI_LOG")"
 assert_contains "$diff_log" "diff" "diff invoca chezmoi diff"
 assert_contains "$diff_log" "-S $tmp/prod" "diff usa la copia de producción"
 assert_not_contains "$diff_log" "-S $tmp/invoker" "diff no usa el directorio invocador"
+
+# --- diff: hunk en PATH usa --pager; si no, --no-pager y el aviso ---
+mkdir -p "$tmp/hunkbin"
+export HUNK_LOG="$tmp/hunk.log"
+cat > "$tmp/hunkbin/hunk" << 'EOF'
+#!/usr/bin/env bash
+printf 'executed\n' >> "${HUNK_LOG:?}"
+EOF
+chmod +x "$tmp/hunkbin/hunk"
+: > "$HUNK_LOG"
+path_sin_hunk "$tmp/nohunk"
+
+: > "$CHEZMOI_LOG"
+out="$(PATH="$tmp/hunkbin:$tmp/nohunk" run_make "$tmp/invoker" diff 2>&1)"
+diff_log="$(cat "$CHEZMOI_LOG")"
+assert_contains "$diff_log" "--pager" "con hunk, chezmoi recibe --pager"
+assert_contains "$diff_log" "hunk pager" "con hunk, el pager es hunk pager"
+assert_contains "$diff_log" "-S $tmp/prod" "con hunk, diff sigue usando la copia de producción"
+assert_not_contains "$out" "/z/rf-dotfiles" "con hunk, diff no cae en /z/rf-dotfiles"
+assert_not_contains "$out" "mejor experiencia" "con hunk no pide instalarlo"
+assert_contains "$out" "DIFF" "con hunk el diff se imprime"
+assert_eq "" "$(cat "$HUNK_LOG")" "make diff no ejecuta hunk; se lo pasa a chezmoi"
+
+: > "$CHEZMOI_LOG"
+: > "$HUNK_LOG"
+out="$(DRY_RUN=1 PATH="$tmp/hunkbin:$tmp/nohunk" run_make "$tmp/invoker" diff 2>&1)"
+assert_contains "$out" "--pager" "DRY_RUN con hunk muestra --pager"
+assert_contains "$out" "hunk pager" "DRY_RUN con hunk muestra hunk pager"
+assert_not_contains "$out" "DIFF" "DRY_RUN con hunk no corre chezmoi diff"
+assert_not_contains "$(cat "$CHEZMOI_LOG")" "--pager" "DRY_RUN con hunk no invoca chezmoi diff"
+assert_eq "" "$(cat "$HUNK_LOG")" "DRY_RUN con hunk no ejecuta hunk"
+
+: > "$CHEZMOI_LOG"
+out="$(PATH="$tmp/nohunk" run_make "$tmp/invoker" diff 2>&1)"
+diff_log="$(cat "$CHEZMOI_LOG")"
+assert_contains "$diff_log" "--no-pager" "sin hunk, chezmoi recibe --no-pager"
+assert_not_contains "$diff_log" "--pager" "sin hunk, no pasa --pager"
+assert_contains "$out" "mejor experiencia en los diffs" "sin hunk, avisa que instalarlo mejora el diff"
+assert_contains "$out" "DIFF" "sin hunk el diff igual se imprime"
+assert_not_contains "$out" "/z/rf-dotfiles" "sin hunk, diff no cae en /z/rf-dotfiles"
+
+: > "$CHEZMOI_LOG"
+out="$(DRY_RUN=1 PATH="$tmp/nohunk" run_make "$tmp/invoker" diff 2>&1)"
+assert_contains "$out" "--no-pager" "DRY_RUN sin hunk muestra --no-pager"
+assert_contains "$out" "mejor experiencia en los diffs" "DRY_RUN sin hunk también avisa"
+assert_not_contains "$out" "DIFF" "DRY_RUN sin hunk no corre chezmoi diff"
+assert_not_contains "$(cat "$CHEZMOI_LOG")" "--no-pager" "DRY_RUN sin hunk no invoca chezmoi diff"
 
 saved_url="$(git -C "$tmp/prod" remote get-url origin)"
 git -C "$tmp/prod" remote set-url origin "$tmp/no-such-remote.git"
