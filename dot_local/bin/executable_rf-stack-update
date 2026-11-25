@@ -99,6 +99,27 @@ remote_ver() {
   "$1" -Si "$2" 2>/dev/null | awk '/^Version[[:space:]]*:/{print $3; exit}' || true
 }
 
+aur_deps() {
+  yay -Si "$1" 2>/dev/null | awk '
+    function emit() {
+      gsub(/^[[:space:]]+/, "")
+      n = split($0, a, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) if (a[i] != "") print a[i]
+    }
+    /^Depends On/ { p = 1; sub(/^[^:]*:[[:space:]]*/, ""); emit(); next }
+    p && /^[A-Za-z]/ { exit }
+    p { emit() }
+  ' || true
+}
+
+dep_resolvable() {
+  local name=$1
+  name="${name%%<*}"
+  name="${name%%>*}"
+  name="${name%%=*}"
+  pacman -Si "$name" >/dev/null 2>&1
+}
+
 upgrade_pkg() {
   local pkg=$1 before remote
   before="$(pkg_ver "$pkg")"
@@ -130,6 +151,15 @@ upgrade_pkg() {
   fi
   if [[ "$(vercmp "$remote" "$before")" -le 0 ]]; then
     note_same "$pkg" "$before"
+    return 0
+  fi
+  local dep missing=()
+  while IFS= read -r dep; do
+    [[ -n "$dep" ]] || continue
+    dep_resolvable "$dep" || missing+=("$dep")
+  done < <(aur_deps "$pkg")
+  if ((${#missing[@]})); then
+    note_skip "$pkg" "AUR $remote pide ${missing[*]}, que no está en los repos; queda en $before"
     return 0
   fi
   if yay -S --noconfirm --answerclean None --answerdiff None --answeredit None "$pkg"; then
