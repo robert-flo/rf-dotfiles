@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Fija las carpetas de grabación en /zt. Si ya están, devuelve el archivo
+# tal cual: Clavis reescribe el resto y no debe salir en chezmoi diff.
+set -euo pipefail
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+cat > "$tmp"
+
+if [[ ! -s "$tmp" ]]; then
+  printf '%s\n' '{}' > "$tmp"
+fi
+
+if jq -e '
+  .recordingVideoDirectory == "/zt"
+  and .recordingGifDirectory == "/zt"
+  and .recordingMicrophoneDirectory == "/zt"
+  and .recordingSystemAudioDirectory == "/zt"
+' "$tmp" >/dev/null; then
+  cat "$tmp"
+  exit 0
+fi
+
+jq '
+  .recordingVideoDirectory = "/zt"
+  | .recordingGifDirectory = "/zt"
+  | .recordingMicrophoneDirectory = "/zt"
+  | .recordingSystemAudioDirectory = "/zt"
+' "$tmp"
