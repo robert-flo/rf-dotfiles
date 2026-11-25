@@ -3,6 +3,10 @@
 # Compartida entre todos los perfiles (Clavis, Nyxuri, Omarchy) vía Chezmoi
 # ==============================================================================
 
+# t3code: sin telemetría. Mismas variables que bash, zsh y environment.d.
+set -gx T3CODE_TELEMETRY_ENABLED false
+set -gx T3CODE_OTEL_SDK_DISABLED true
+
 # 1. Entorno base y editor
 set -g fish_greeting ""
 set -gx XDG_CONFIG_HOME $HOME/.config

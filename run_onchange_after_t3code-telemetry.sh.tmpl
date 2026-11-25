@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Telemetría de t3code apagada en todo el sistema, y el gateway bloqueado en hosts.
+# Idempotente: correrlo otra vez no duplica la línea ni reescribe si ya está igual.
+set -euo pipefail
+
+hosts_line='0.0.0.0 ingest.t3.codes'
+env_file=/etc/environment.d/99-t3code.conf
+
+if [[ $EUID -eq 0 ]]; then
+  sudo_cmd=()
+elif sudo -n true 2>/dev/null; then
+  sudo_cmd=(sudo)
+elif [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+  echo "==> [chezmoi] ERROR: t3code telemetry sin sudo." >&2
+  exit 1
+else
+  echo "==> [chezmoi] Sin sudo: /etc/hosts y /etc/environment.d quedan para el próximo apply con sudo."
+  exit 0
+fi
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+printf '%s\n' \
+  'T3CODE_TELEMETRY_ENABLED=false' \
+  'T3CODE_OTEL_SDK_DISABLED=true' \
+  >"$tmp"
+
+"${sudo_cmd[@]}" install -d -m 755 /etc/environment.d
+if [[ ! -f "$env_file" ]] || ! cmp -s "$tmp" "$env_file"; then
+  "${sudo_cmd[@]}" install -m 644 "$tmp" "$env_file"
+  echo "==> [chezmoi] $env_file"
+else
+  echo "==> [chezmoi] $env_file ya estaba"
+fi
+
+if "${sudo_cmd[@]}" grep -qE '(^|[[:space:]])ingest\.t3\.codes([[:space:]]|$)' /etc/hosts; then
+  echo "==> [chezmoi] /etc/hosts ya bloquea ingest.t3.codes"
+else
+  printf '%s\n' "$hosts_line" | "${sudo_cmd[@]}" tee -a /etc/hosts >/dev/null
+  echo "==> [chezmoi] /etc/hosts += $hosts_line"
+fi
