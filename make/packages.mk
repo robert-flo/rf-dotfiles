@@ -10,7 +10,7 @@ PACKAGES_FILE ?= $(CURDIR)/.chezmoidata/packages.json
 help-packages: ## Show package manifest targets
 	@printf "\n"
 	@printf "$(CYAN)Packages SSoT$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make packages-check$(NC)       Validate .chezmoidata/packages.json schema & duplicates\n"
 	@printf "  $(GREEN)make packages-summary$(NC)     Show package counts per repository channel\n"
 	@printf "  $(GREEN)make packages-missing$(NC)     List declared packages not installed on this host\n"
@@ -19,7 +19,7 @@ packages-check: ## Validate .chezmoidata/packages.json with jq
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)📦 packages-check · validate SSoT manifest$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -37,7 +37,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • view counts:          $(BLUE)make packages-summary$(NC)\n"
 	@printf "  • find missing pkgs:    $(BLUE)make packages-missing$(NC)\n\n"
 endif
@@ -46,7 +46,7 @@ packages-summary: ## Show package counts by channel
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)📊 packages-summary · SSoT package counts$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -64,7 +64,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • validate manifest:    $(BLUE)make packages-check$(NC)\n"
 	@printf "  • find missing pkgs:    $(BLUE)make packages-missing$(NC)\n\n"
 endif
@@ -73,7 +73,7 @@ packages-missing: ## List declared packages not installed locally
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🔍 packages-missing · compare SSoT against pacman$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -94,7 +94,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • view counts:          $(BLUE)make packages-summary$(NC)\n"
 	@printf "  • validate manifest:    $(BLUE)make packages-check$(NC)\n\n"
 endif

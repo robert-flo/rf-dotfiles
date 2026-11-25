@@ -18,7 +18,7 @@ ROOT_SCRIPTS := \
 help-daily: ## Show daily chezmoi targets
 	@printf "\n"
 	@printf "$(CYAN)Día a día$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make morning$(NC)              Commit, perfil, sudo, archivos a perder y scripts\n"
 	@printf "  $(GREEN)make lose$(NC)                 Archivos del home que un apply pisaría\n"
 	@printf "  $(GREEN)make pull$(NC)                 Actualiza la copia de chezmoi y el clon invocador\n"
@@ -29,7 +29,7 @@ morning: ## Read-only board for the chezmoi source copy (may fetch)
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)☀️  morning · copia que chezmoi lee$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	source="$$($(DAILY_SH) source --canonical)"; \
@@ -71,7 +71,7 @@ lose: ## List home files an apply would modify or delete
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)⚠️  lose · archivos del home que un apply pisaría$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	show=$(if $(EMBEDDED),0,1); \
@@ -83,14 +83,14 @@ endif
 		if [ "$$show" -eq 1 ]; then \
 			printf "\n$(GREEN)  ✓ nada que perder$(NC)\n"; \
 			printf "\n$(YELLOW)📋 Qué hacer ahora:$(NC)\n"; \
-			printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"; \
+			printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"; \
 			printf "  • aplicar cambios al home: $(BLUE)make safe$(NC)\n\n"; \
 		fi; \
 	elif [ "$$code" -eq 1 ]; then \
 		if [ "$$show" -eq 1 ]; then \
 			printf "\n$(YELLOW)  ⚠ estos archivos en \$$HOME tienen cambios locales que un apply pisaría$(NC)\n"; \
 			printf "\n$(YELLOW)📋 Qué hacer ahora:$(NC)\n"; \
-			printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"; \
+			printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"; \
 			printf "  1. Ver qué cambió exactamente:        $(BLUE)make diff$(NC)\n"; \
 			printf "  2. Conservar tus cambios en el repo:  $(BLUE)chezmoi re-add <archivo>$(NC)\n"; \
 			printf "  3. Descartar cambios locales:         $(BLUE)make apply$(NC) $(DIM)(o make apply DRY_RUN=1 para previsualizar)$(NC)\n\n"; \
@@ -103,7 +103,7 @@ pull: ## Pull origin/master into the chezmoi source and the invoking clone
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)⬇️  pull · origin/$(BASE_BRANCH) sin apply$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	source="$$($(DAILY_SH) source)"; \
@@ -128,7 +128,7 @@ safe: ## Apply the home only when lose is empty
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🛟 safe · apply del home solo si no hay nada que perder$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@$(DAILY_SH) lose
 	@set -euo pipefail; \
@@ -144,7 +144,7 @@ root: ## Run root install scripts only; do not apply the home tree
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🔐 root · herramientas, hook y paquetes$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$$($(DAILY_SH) sudo-state)" != yes ]; then \

@@ -17,7 +17,7 @@ ELECTRON_ARGS  ?=
 help-browser: ## Show browser flag evidence targets
 	@printf "\n"
 	@printf "$(CYAN)Browser Flags$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make browser-flags-check$(NC)  Check every flag of BROWSER_FLAGS exists in the browser binary\n"
 	@printf "  $(GREEN)make browser-flags-check-all$(NC)  Check each Chromium-family flag file against its own installed binary\n"
 	@printf "  $(GREEN)make browser-bench$(NC)        Measure BROWSER_FLAGS in a temp profile (opens windows ~60 s)\n"
@@ -29,7 +29,7 @@ browser-flags-check: ## Check that each flag in BROWSER_FLAGS exists in BROWSER_
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🔎 browser-flags-check · $(BROWSER_LABEL)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -49,7 +49,7 @@ browser-flags-check-all: ## Check every browser's flag file against its installe
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🔎 browser-flags-check-all$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -77,7 +77,7 @@ browser-bench: ## Measure BROWSER_FLAGS (decode, CPU H.264/VP9, typing, stabilit
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🧪 browser-bench · $(BROWSER_LABEL)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "$(YELLOW)  ⚠ opens real browser windows on this screen for about a minute$(NC)\n"
 endif
 	@set -euo pipefail; \
@@ -91,7 +91,7 @@ electron-bench: ## Measure ELECTRON_APP (flags read, native Wayland, typing, CPU
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🧪 electron-bench · $(ELECTRON_APP)$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "$(YELLOW)  ⚠ opens a real app window on this screen for about half a minute$(NC)\n"
 endif
 	@set -euo pipefail; \

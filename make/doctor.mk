@@ -9,14 +9,14 @@ PACKAGES_FILE ?= $(CURDIR)/.chezmoidata/packages.json
 help-doctor: ## Show doctor diagnostic targets
 	@printf "\n"
 	@printf "$(CYAN)Diagnostics$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make doctor$(NC)               Check required tools, SSoT manifest, and symlinks\n"
 
 doctor: ## Check required tools, packages.json, and declarative symlinks
 ifndef EMBEDDED
 	@printf "\n"
 	@printf "$(CYAN)🩺 doctor · rf-dotfiles environment diagnostics$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
@@ -53,7 +53,7 @@ endif
 ifndef EMBEDDED
 	@printf "\n$(GREEN)  ✓ done$(NC)\n"
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • run full check:       $(BLUE)make check$(NC)\n"
 	@printf "  • check git status:     $(BLUE)make git-status$(NC)\n\n"
 endif

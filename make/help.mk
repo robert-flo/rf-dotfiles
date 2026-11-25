@@ -24,7 +24,7 @@ endif
 	@$(MAKE) -s --no-print-directory help-daily
 ifndef EMBEDDED
 	@printf "\n$(YELLOW)📋 Quick Actions:$(NC)\n"
-	@printf "$(DIM)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(DIM)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  • check dotfile drift:  $(BLUE)make status$(NC)\n"
 	@printf "  • see what apply loses: $(BLUE)make lose$(NC)  $(DIM)(apply overwrites local changes)$(NC)\n"
 	@printf "  • preview apply:        $(BLUE)make apply DRY_RUN=1$(NC)\n"
@@ -34,5 +34,5 @@ endif
 help-general: ## Show general targets
 	@printf "\n"
 	@printf "$(CYAN)General$(NC)\n"
-	@printf "$(CYAN)────────────────────────────────────────────────────────────────────────────────$(NC)\n"
+	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
 	@printf "  $(GREEN)make help$(NC)                 Show this categorized command center\n"
