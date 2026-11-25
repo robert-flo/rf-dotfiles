@@ -1,3 +1,7 @@
+# t3code: sin telemetría en cualquier bash, también no interactivo.
+export T3CODE_TELEMETRY_ENABLED=false
+export T3CODE_OTEL_SDK_DISABLED=true
+
 {{- if eq .chezmoi.username "niri-upstream" }}
 # --- ANDROID & JAVA ENVIRONMENT ---
 export ANDROID_HOME="/opt/android-sdk"

@@ -1,3 +1,7 @@
 # ~/.zshenv - Managed by Chezmoi
 export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
 [[ -r "$ZDOTDIR/.zshenv" ]] && source "$ZDOTDIR/.zshenv"
+
+# t3code: sin telemetría en cualquier zsh, no solo en el rc interactivo.
+export T3CODE_TELEMETRY_ENABLED=false
+export T3CODE_OTEL_SDK_DISABLED=true
