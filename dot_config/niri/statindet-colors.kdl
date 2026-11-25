@@ -1,8 +1,8 @@
 layout {
     focus-ring {
         width 4
-        active-color "#156683"
-        active-gradient from="#156683" to="#5e5a7d" angle=135
+        active-color "#4b5c92"
+        active-gradient from="#4b5c92" to="#745470" angle=135
         inactive-color "transparent"
         urgent-color "#ba1a1a"
     }

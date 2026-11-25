@@ -54,7 +54,7 @@ Archivos y enlaces que deben existir idénticos en todos los perfiles del sistem
 ### 2. Perfil Clavis (`niri`, `niri-test`, `sura`)
 Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
 - `dot_config/niri/`: `config.kdl`, atajos de teclado, reglas de ventana, acciones y esquinas.
-- `dot_config/clavis/config.json.tmpl`: Configuración central de Clavis Shell (con `{{ .chezmoi.homeDir }}`).
+- `dot_config/clavis/config.json.tmpl`: Configuración central de Clavis Shell (con `{{ .chezmoi.homeDir }}`). Si `make diff` lo marca, la sección de drift de abajo dice qué mecanismo usar.
 - `dot_config/gtk-3.0/`, `dot_config/gtk-4.0/`: Temas visuales MacTahoe Dark GTK.
 - `dot_config/fcitx5/`: Tema visual Matugen para métodos de entrada.
 - `dot_config/environment.d/clavis-mpvpaper.conf.tmpl`: Variables de sesión Wayland.
@@ -69,6 +69,18 @@ Archivos de la experiencia Wayland Clavis Shell (Quickshell) y Niri:
   - Depuración remota sobre el perfil por defecto: bloqueada por Chrome de marca; por eso el perfil dedicado.
   - Inyección CDP por `--remote-debugging-pipe` (sin puerto TCP) con `Page.addScriptToEvaluateOnNewDocument`: **elegido**; sin extensión ni cambios en `/`.
   - Medido con `scripts/browser-flags-bench -u <YouTube> [-i h264only.js]` (1080p60, tres ventanas, mediana): VP9 por software (`VpxVideoDecoder`) 106–127 % de un núcleo y 40–53 % de CPU del sistema; AV1 por software (Dav1d) 98–126 % y 62–68 %; con H.264 (`VaapiVideoDecoder`) 39–53 % y 49–52 %. Los frames perdidos dependen de la carga puntual de la máquina (0 a ~300 en los tres casos), no del códec.
+
+### Drift entre `$HOME` y la fuente
+
+`make diff` compara el `$HOME` con la copia de producción (`chezmoi source-path`; aquí `/z/rf-dotfiles`). `make apply-clavis` aplica el directorio desde el que se corre. Un cambio sin commit no está en `origin`: `make pull` no lo publica. Hecho cuando `chezmoi diff -S /z/rf-dotfiles -- <ruta del $HOME>` sale vacío.
+
+Tres mecanismos. El criterio es quién escribe el archivo después del apply.
+
+1. **Chezmoi es el dueño del archivo entero.** Caso: `dot_config/niri/statindet-colors.kdl`. Se copia tal cual. El anillo de foco que ya corría en el home (`active-color "#4b5c92"`, gradiente hacia `"#745470"`) reemplazó al de la fuente (`"#156683"` hacia `"#5e5a7d"`). Copiar el archivo del home sobre la fuente. `statindet-animations.kdl` y `statindet-windowrule.kdl` ya coincidían y no se tocaron.
+
+2. **La app reescribe el archivo y chezmoi solo fija unas claves, aunque el archivo ya exista.** Caso: `~/.config/clavis/ui-preferences.json`, vía `dot_config/clavis/modify_ui-preferences.json`. La fuente solo aporta cuatro rutas en `/zt`: `recordingVideoDirectory`, `recordingGifDirectory`, `recordingMicrophoneDirectory`, `recordingSystemAudioDirectory`. El resto (reloj, clima, grilla, tarjetas, nube) lo guarda Clavis. Un template normal en el apply sustituye el archivo por esas cuatro claves. `create_` (el de `create_dolphinrc`) siembra una vez y no vuelve a escribir: sirve cuando la app no crea el archivo antes. Clavis lo crea primero, sin las rutas, así que el mecanismo es `modify_`: lee el JSON por stdin, pone esas cuatro claves en `/zt` y, si ya valen `/zt`, devuelve la entrada sin cambiar un byte. Así el diff queda vacío con el estado vivo intacto. El `modify_` de Spicetify es otro caso: reescribe su config y solo conserva `[Patch]` y `[Backup]`.
+
+3. **El template es la config y el home trae la clave que la app ya migró.** Caso: `dot_config/clavis/config.json.tmpl`, `keystone.dimensions`. El home tenía `"clockPadding": 20`; el template tenía `"compactLength": 220`. Se dejó `clockPadding`. El home no termina en salto de línea; el template cierra con `{{- end -}}` para que el render tampoco.
 
 ### 3. Perfil Omarchy (`rollo`, `omarchy-test`, `omarchy`)
 Archivos de la experiencia Hyprland bajo Omarchy Quattro (4.6):
