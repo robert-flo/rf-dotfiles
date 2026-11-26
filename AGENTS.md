@@ -149,6 +149,8 @@ Al modificar `.chezmoidata/packages.json`, Chezmoi detecta el cambio de hash en 
 
 `run_before_01-upgrade-ravn-webapps.sh.tmpl` corre en cada apply (con sudo) y hace `pacman -Sy --needed ravn-webapps`. Los `.desktop` de las webapps viven en ese paquete (`/usr/share/applications`), el mismo para todos los usuarios; la clase de ventana que el dock de Clavis usa para el icono va ahí, no en una copia de `~/.local/share/applications`. Sin este script, un release nuevo no entra hasta que cambia `packages.json`. Prueba: `scripts/tests/test-ravn-webapps-upgrade.sh`.
 
+`run_before_02-splayer-desktop.sh.tmpl` corre en cada apply. `splayer-next-bin` instala `/usr/share/icons/hicolor/512x512/apps/SPlayer-Next.png` y el `.desktop` pide `Icon=splayer-next`; el tema distingue mayúsculas y el dock y Spotlight muestran el icono genérico. `Exec` apunta a `/usr/local/bin/splayer-next`, que el paquete no crea (el binario es `/usr/bin/splayer-next`). El script deja en `~/.local/share/applications/top.imsyy.splayer_next.desktop` la misma ficha con `Icon=SPlayer-Next` y el `Exec` del paquete, y la borra si el paquete ya viene corregido o si no está instalado. No toca un `.desktop` del usuario sin la marca `# rf-dotfiles`. Prueba: `scripts/tests/test-splayer-desktop.sh`.
+
 ---
 
 ## 🔄 Protocolo de Modificación y Despliegue Seguro
