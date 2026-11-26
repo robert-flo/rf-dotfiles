@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# splayer-next-bin instala el icono como SPlayer-Next.png y el .desktop
+# pide Icon=splayer-next. El tema de iconos distingue mayúsculas, así que
+# el dock y Spotlight caen al icono genérico. Exec apunta a /usr/local/bin,
+# ruta que el paquete no crea; el binario empaquetado es /usr/bin/splayer-next.
+# La copia de ~/.local solo existe mientras el .desktop del paquete siga así.
+set -euo pipefail
+
+src="${SPLAYER_DESKTOP_SRC:-/usr/share/applications/top.imsyy.splayer_next.desktop}"
+dest="${SPLAYER_DESKTOP_DEST:-${XDG_DATA_HOME:-$HOME/.local/share}/applications/top.imsyy.splayer_next.desktop}"
+marker='# rf-dotfiles: icono SPlayer-Next y Exec en /usr/bin'
+
+remove_override() {
+  if [[ -f "$dest" ]] && grep -qxF "$marker" "$dest"; then
+    rm -f "$dest"
+  fi
+}
+
+if [[ ! -f "$src" ]]; then
+  remove_override
+  exit 0
+fi
+
+corrected="$(awk -v marker="$marker" '
+  /^Icon=splayer-next$/ { print "Icon=SPlayer-Next"; changed = 1; next }
+  /^Exec=\/usr\/local\/bin\/splayer-next( |$)/ {
+    sub("/usr/local/bin/splayer-next", "/usr/bin/splayer-next")
+    print
+    changed = 1
+    next
+  }
+  { print }
+  END { if (changed) print marker }
+' "$src")"
+
+if ! printf '%s\n' "$corrected" | grep -qxF "$marker"; then
+  remove_override
+  exit 0
+fi
+
+mkdir -p "$(dirname "$dest")"
+tmp="$(mktemp "$(dirname "$dest")/splayer-desktop.XXXXXX")"
+printf '%s\n' "$corrected" >"$tmp"
+if [[ -f "$dest" ]] && cmp -s "$tmp" "$dest"; then
+  rm -f "$tmp"
+else
+  mv "$tmp" "$dest"
+  echo "==> [chezmoi] $dest"
+fi
