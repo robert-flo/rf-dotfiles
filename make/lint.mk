@@ -10,7 +10,7 @@ help-lint: ## Show lint, test, and check targets
 	@printf "\n"
 	@printf "$(CYAN)Quality & Checks$(NC)\n"
 	@printf "$(CYAN)──────────────────────────────────────────────────────────────────────$(NC)\n"
-	@printf "  $(GREEN)make lint$(NC)                 Run shellcheck on scripts/yt-*, scripts/browser-flags-bench, scripts/electron-flags-bench, scripts/rf-make-daily.sh and scripts/tests/*.sh\n"
+	@printf "  $(GREEN)make lint$(NC)                 Run shellcheck on scripts/yt-*, scripts/omarchy-personal-update, scripts/browser-flags-bench, scripts/electron-flags-bench, scripts/rf-make-daily.sh and scripts/tests/*.sh\n"
 	@printf "  $(GREEN)make test$(NC)                 Run test suites under scripts/tests/\n"
 	@printf "  $(GREEN)make check$(NC)                Run verify, packages-check, lint, and test\n"
 
@@ -22,9 +22,9 @@ ifndef EMBEDDED
 endif
 	@set -euo pipefail; \
 	if [ "$(DRY_RUN)" = "1" ]; then \
-		printf "  ▶ [dry-run] $(SHELLCHECK) $(CURDIR)/scripts/yt-* $(CURDIR)/scripts/browser-flags-bench $(CURDIR)/scripts/electron-flags-bench $(CURDIR)/scripts/rf-make-daily.sh $(CURDIR)/scripts/tests/*.sh\n"; \
+		printf "  ▶ [dry-run] $(SHELLCHECK) $(CURDIR)/scripts/yt-* $(CURDIR)/scripts/omarchy-personal-update $(CURDIR)/scripts/browser-flags-bench $(CURDIR)/scripts/electron-flags-bench $(CURDIR)/scripts/rf-make-daily.sh $(CURDIR)/scripts/tests/*.sh\n"; \
 	else \
-		$(SHELLCHECK) "$(CURDIR)"/scripts/yt-* "$(CURDIR)"/scripts/browser-flags-bench "$(CURDIR)"/scripts/electron-flags-bench "$(CURDIR)"/scripts/rf-make-daily.sh "$(CURDIR)"/scripts/tests/*.sh; \
+		$(SHELLCHECK) "$(CURDIR)"/scripts/yt-* "$(CURDIR)"/scripts/omarchy-personal-update "$(CURDIR)"/scripts/browser-flags-bench "$(CURDIR)"/scripts/electron-flags-bench "$(CURDIR)"/scripts/rf-make-daily.sh "$(CURDIR)"/scripts/tests/*.sh; \
 		printf "$(GREEN)  ✓ shellcheck passed cleanly$(NC)\n"; \
 	fi
 ifndef EMBEDDED
@@ -47,7 +47,7 @@ endif
 	else \
 		for t in "$(CURDIR)"/scripts/tests/*.sh; do \
 			printf "  $(DIM)running:$(NC) $$(basename "$$t")\n"; \
-			bash "$$t"; \
+			env -u EMBEDDED MAKEFLAGS= MAKEOVERRIDES= bash "$$t"; \
 		done; \
 		printf "$(GREEN)  ✓ all script tests passed$(NC)\n"; \
 	fi
