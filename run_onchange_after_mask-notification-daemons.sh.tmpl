@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+{{- $profile := env "CHEZMOI_PROFILE" }}
+{{- if not $profile }}
+{{-   if eq .chezmoi.username "niri-upstream" }}
+{{-     $profile = "clavis-upstream" }}
+{{-   else if or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test") (eq .chezmoi.username "sura") }}
+{{-     $profile = "clavis" }}
+{{-   end }}
+{{- end }}
+
+{{ if or (eq $profile "clavis") (eq $profile "clavis-upstream") }}
+# mako mask: {{ include "dot_config/systemd/user/symlink_mako.service" | sha256sum }}
+# swaync mask: {{ include "dot_config/systemd/user/symlink_swaync.service" | sha256sum }}
+# dunst mask: {{ include "dot_config/systemd/user/symlink_dunst.service" | sha256sum }}
+set -euo pipefail
+
+if ! systemctl --user daemon-reload; then
+  printf 'notificaciones: sin systemd --user; las máscaras quedan en disco\n'
+  exit 0
+fi
+
+systemctl --user stop mako.service swaync.service dunst.service 2>/dev/null || true
+pkill -x mako 2>/dev/null || true
+pkill -x swaync 2>/dev/null || true
+pkill -x dunst 2>/dev/null || true
+{{ else }}
+exit 0
+{{ end }}
