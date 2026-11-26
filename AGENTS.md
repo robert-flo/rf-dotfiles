@@ -145,7 +145,9 @@ El script de plantilla `run_onchange_before_01-install-packages.sh.tmpl` contien
 ```text
 # packages.json hash: {{ include ".chezmoidata/packages.json" | sha256sum }}
 ```
-Al modificar `.chezmoidata/packages.json`, Chezmoi detecta el cambio de hash en la siguiente ejecución de `chezmoi apply` e invoca automáticamente la reconciliación de paquetes faltantes.
+Al modificar `.chezmoidata/packages.json`, Chezmoi detecta el cambio de hash en la siguiente ejecución de `chezmoi apply` e invoca automáticamente la reconciliación de paquetes faltantes. Ese script instala lo que falta y, solo cuando vuelve a correr, sube `herdr` si `pacman -Qu` lo lista.
+
+`run_before_01-upgrade-ravn-webapps.sh.tmpl` corre en cada apply (con sudo) y hace `pacman -Sy --needed ravn-webapps`. Los `.desktop` de las webapps viven en ese paquete (`/usr/share/applications`), el mismo para todos los usuarios; la clase de ventana que el dock de Clavis usa para el icono va ahí, no en una copia de `~/.local/share/applications`. Sin este script, un release nuevo no entra hasta que cambia `packages.json`. Prueba: `scripts/tests/test-ravn-webapps-upgrade.sh`.
 
 ---
 

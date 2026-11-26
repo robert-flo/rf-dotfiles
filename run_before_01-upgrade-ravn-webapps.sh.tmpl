@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Los .desktop de las webapps viven en el paquete ravn-webapps
+# (/usr/share/applications), compartido por todos los usuarios.
+# run_onchange_before_01-install-packages.sh.tmpl solo corre cuando cambia
+# su texto: un release nuevo no entraría hasta el próximo cambio de
+# packages.json. Este script corre en cada apply.
+set -euo pipefail
+
+if [[ $EUID -eq 0 ]]; then
+  sudo_cmd=()
+elif sudo -n true 2>/dev/null; then
+  sudo_cmd=(sudo)
+elif [[ "${RF_APPLY_FULL:-0}" == 1 ]]; then
+  echo "==> [chezmoi] ERROR: apply completo sin sudo: ravn-webapps no se actualiza." >&2
+  exit 1
+else
+  echo "==> [chezmoi] Sin sudo: ravn-webapps queda para el próximo apply con sudo."
+  exit 0
+fi
+
+echo "==> [chezmoi] Actualizando ravn-webapps si el repo personal trae una versión nueva..."
+if ! "${sudo_cmd[@]}" pacman -Sy --needed --noconfirm ravn-webapps; then
+  echo "==> [chezmoi] Aviso: no se pudo actualizar ravn-webapps; el apply sigue." >&2
+fi
