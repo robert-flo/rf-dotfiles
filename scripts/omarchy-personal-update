@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Actualiza únicamente los paquetes instalados que provienen del repositorio
+# [omarchy-personal], sin tocar core/extra/omarchy ni hacer downgrades.
+set -euo pipefail
+
+PACMAN_DB_LOCK="${PACMAN_DB_LOCK:-/var/lib/pacman/db.lck}"
+OMARCHY_PERSONAL_CONF="${OMARCHY_PERSONAL_CONF:-/etc/pacman.d/omarchy-personal.conf}"
+
+if [[ -e "$PACMAN_DB_LOCK" ]]; then
+  echo "pacman está bloqueado ($PACMAN_DB_LOCK); omitiendo actualización."
+  exit 0
+fi
+
+if [[ ! -f "$OMARCHY_PERSONAL_CONF" ]]; then
+  echo "omarchy-personal: falta $OMARCHY_PERSONAL_CONF; omitiendo actualización."
+  exit 0
+fi
+
+tmpconf="$(mktemp)"
+trap 'rm -f "$tmpconf"' EXIT
+
+cat >"$tmpconf" <<CONF
+[options]
+HoldPkg     = pacman glibc
+Architecture = auto
+SigLevel    = Required DatabaseOptional
+Include     = $OMARCHY_PERSONAL_CONF
+CONF
+
+pacman -Sy --config "$tmpconf" --noconfirm >/dev/null
+
+mapfile -t updates < <(pacman -Qu --config "$tmpconf" 2>/dev/null | awk '{print $1}' || true)
+if (( ${#updates[@]} == 0 )); then
+  echo "omarchy-personal: todos los paquetes están al día."
+  exit 0
+fi
+
+echo "omarchy-personal: actualizando ${updates[*]}"
+pacman -S --config "$tmpconf" --noconfirm --needed "${updates[@]}"
