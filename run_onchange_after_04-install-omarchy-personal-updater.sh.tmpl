@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_onchange_after_04-install-omarchy-personal-updater.sh.tmpl
+# Despliegue idempotente del actualizador horario de [omarchy-personal]
+# omarchy-personal-update hash: {{ include "scripts/omarchy-personal-update" | sha256sum }}
+# omarchy-personal-update.service hash: {{ include "scripts/systemd/omarchy-personal-update.service" | sha256sum }}
+# omarchy-personal-update.timer hash: {{ include "scripts/systemd/omarchy-personal-update.timer" | sha256sum }}
+# ==============================================================================
+set -euo pipefail
+
+CAN_SUDO=false
+SUDO_CMD=()
+if [[ $EUID -eq 0 ]]; then
+  CAN_SUDO=true
+elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  CAN_SUDO=true
+  SUDO_CMD=(sudo)
+fi
+
+if [[ "$CAN_SUDO" == false ]]; then
+  echo "==> [chezmoi] Omitiendo actualizador [omarchy-personal] (sin privilegios sudo directos)."
+  exit 0
+fi
+
+SRC_DIR="{{ .chezmoi.sourceDir }}"
+BIN_SRC="$SRC_DIR/scripts/omarchy-personal-update"
+SERVICE_SRC="$SRC_DIR/scripts/systemd/omarchy-personal-update.service"
+TIMER_SRC="$SRC_DIR/scripts/systemd/omarchy-personal-update.timer"
+
+BIN_DST="/usr/local/bin/omarchy-personal-update"
+SERVICE_DST="/etc/systemd/system/omarchy-personal-update.service"
+TIMER_DST="/etc/systemd/system/omarchy-personal-update.timer"
+
+CHANGED_ANY=false
+CHANGED_UNITS=false
+
+if [[ ! -f "$BIN_DST" ]] || ! cmp -s "$BIN_SRC" "$BIN_DST"; then
+  echo "==> [chezmoi] Instalando $BIN_DST..."
+  "${SUDO_CMD[@]}" install -Dm755 "$BIN_SRC" "$BIN_DST"
+  CHANGED_ANY=true
+fi
+
+if [[ ! -f "$SERVICE_DST" ]] || ! cmp -s "$SERVICE_SRC" "$SERVICE_DST"; then
+  echo "==> [chezmoi] Instalando $SERVICE_DST..."
+  "${SUDO_CMD[@]}" install -Dm644 "$SERVICE_SRC" "$SERVICE_DST"
+  CHANGED_UNITS=true
+  CHANGED_ANY=true
+fi
+
+if [[ ! -f "$TIMER_DST" ]] || ! cmp -s "$TIMER_SRC" "$TIMER_DST"; then
+  echo "==> [chezmoi] Instalando $TIMER_DST..."
+  "${SUDO_CMD[@]}" install -Dm644 "$TIMER_SRC" "$TIMER_DST"
+  CHANGED_UNITS=true
+  CHANGED_ANY=true
+fi
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  echo "==> [chezmoi] Aviso: systemctl no disponible; omitiendo recarga/activación del timer."
+  exit 0
+fi
+
+if [[ "$CHANGED_UNITS" == true ]]; then
+  echo "==> [chezmoi] Recargando unidades systemd..."
+  "${SUDO_CMD[@]}" systemctl daemon-reload
+fi
+
+if [[ "$CHANGED_ANY" == true ]] \
+  || ! systemctl is-enabled --quiet omarchy-personal-update.timer 2>/dev/null \
+  || ! systemctl is-active --quiet omarchy-personal-update.timer 2>/dev/null; then
+  echo "==> [chezmoi] Habilitando y activando omarchy-personal-update.timer..."
+  "${SUDO_CMD[@]}" systemctl enable --now omarchy-personal-update.timer
+fi
