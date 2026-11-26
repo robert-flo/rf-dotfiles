@@ -150,5 +150,64 @@ tmpconf4="$(head -n 1 "$CFG_PATHS4")"
 check "con updates: limpia la configuración temporal al salir" [ ! -e "$tmpconf4" ]
 check "con updates: imprime paquetes a actualizar" grep -q 'herdr ravn-trio' <<< "$out4"
 
+# --- Hook Chezmoi run_onchange_after_04-install-omarchy-personal-updater ------
+HOOK_TMPL="$REPO_ROOT/run_onchange_after_04-install-omarchy-personal-updater.sh.tmpl"
+check "hook run_onchange_after_04 existe" [ -f "$HOOK_TMPL" ]
+check "hook no hardcodea rutas /home/<user>" [ -z "$(grep -n '/home/' "$HOOK_TMPL" || true)" ]
+
+if command -v chezmoi >/dev/null 2>&1; then
+  HOOK_RENDERED="$TMPDIR_TEST/hook-rendered.sh"
+  rc=0
+  chezmoi execute-template --source="$REPO_ROOT" < "$HOOK_TMPL" > "$HOOK_RENDERED" || rc=$?
+  check "hook renderiza con chezmoi execute-template" [ "$rc" -eq 0 ]
+  check "hook renderizado no deja placeholders sin resolver" [ -z "$(grep -F '{{' "$HOOK_RENDERED" || true)" ]
+  check "hook renderizado es bash válido" bash -n "$HOOK_RENDERED"
+  if command -v shellcheck >/dev/null 2>&1; then
+    check "hook renderizado pasa shellcheck" shellcheck "$HOOK_RENDERED"
+  fi
+
+  h_bin="$(sha256sum "$UPDATER" | awk '{print $1}')"
+  h_svc="$(sha256sum "$SERVICE_UNIT" | awk '{print $1}')"
+  h_tmr="$(sha256sum "$TIMER_UNIT" | awk '{print $1}')"
+  check "hook incluye sha256 de scripts/omarchy-personal-update" grep -q "$h_bin" "$HOOK_RENDERED"
+  check "hook incluye sha256 de omarchy-personal-update.service" grep -q "$h_svc" "$HOOK_RENDERED"
+  check "hook incluye sha256 de omarchy-personal-update.timer" grep -q "$h_tmr" "$HOOK_RENDERED"
+
+  # Prueba de ejecución sin privilegios sudo (salida 0 y sin llamadas a install/systemctl)
+  NOSUDO_BIN="$TMPDIR_TEST/nosudo-bin"
+  NOSUDO_LOG="$TMPDIR_TEST/nosudo.log"
+  mkdir -p "$NOSUDO_BIN"
+  : > "$NOSUDO_LOG"
+  ln -s "$(command -v bash)" "$NOSUDO_BIN/bash"
+  cat >"$NOSUDO_BIN/sudo" <<'MOCK'
+#!/usr/bin/env bash
+exit 1
+MOCK
+  cat >"$NOSUDO_BIN/install" <<'MOCK'
+#!/usr/bin/env bash
+printf 'install %s\n' "$*" >> "$NOSUDO_LOG"
+exit 99
+MOCK
+  cat >"$NOSUDO_BIN/systemctl" <<'MOCK'
+#!/usr/bin/env bash
+printf 'systemctl %s\n' "$*" >> "$NOSUDO_LOG"
+exit 99
+MOCK
+  chmod +x "$NOSUDO_BIN/sudo" "$NOSUDO_BIN/install" "$NOSUDO_BIN/systemctl"
+
+  rc=0
+  out_nosudo="$(PATH="$NOSUDO_BIN" NOSUDO_LOG="$NOSUDO_LOG" bash "$HOOK_RENDERED" 2>&1)" || rc=$?
+  check "hook sin sudo: sale con código 0" [ "$rc" -eq 0 ]
+  check "hook sin sudo: imprime aviso de omitir" grep -qi 'omit' <<< "$out_nosudo"
+  check "hook sin sudo: no invoca install ni systemctl" [ ! -s "$NOSUDO_LOG" ]
+
+  for profile in clavis omarchy nyxuri; do
+    managed_scripts="$(CHEZMOI_PROFILE="$profile" chezmoi managed --source="$REPO_ROOT" --include=files -p relative | grep -E '^scripts/' || true)"
+    check "chezmoi managed ($profile) no filtra scripts/ al HOME" [ -z "$managed_scripts" ]
+  done
+else
+  fail "chezmoi no está instalado para validar el hook"
+fi
+
 printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" -eq 0 ]]

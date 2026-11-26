@@ -47,7 +47,7 @@ endif
 	else \
 		for t in "$(CURDIR)"/scripts/tests/*.sh; do \
 			printf "  $(DIM)running:$(NC) $$(basename "$$t")\n"; \
-			bash "$$t"; \
+			env -u EMBEDDED MAKEFLAGS= MAKEOVERRIDES= bash "$$t"; \
 		done; \
 		printf "$(GREEN)  ✓ all script tests passed$(NC)\n"; \
 	fi
