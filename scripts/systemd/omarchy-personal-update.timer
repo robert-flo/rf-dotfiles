@@ -1,0 +1,11 @@
+[Unit]
+Description=Actualizar paquetes de omarchy-personal-repo cada hora
+
+[Timer]
+OnBootSec=3min
+OnCalendar=hourly
+Persistent=true
+Unit=omarchy-personal-update.service
+
+[Install]
+WantedBy=timers.target

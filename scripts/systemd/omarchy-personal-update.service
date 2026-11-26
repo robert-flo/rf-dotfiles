@@ -1,0 +1,10 @@
+[Unit]
+Description=Actualizar paquetes de omarchy-personal-repo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+TimeoutStartSec=15min
+ExecStart=/usr/local/bin/omarchy-personal-update
