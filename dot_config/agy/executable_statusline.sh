@@ -122,5 +122,7 @@ printf '  📅 %s (renueva en %s) │ ⚡ %s (renueva en %s)\n' \
   "$(reset_label "$gemini_week_reset")" \
   "$(paint "$(remain_color "$window_pct")" "Ventana (5h) disp.: ${window_pct}%")" \
   "$(reset_label "$gemini_5h_reset")"
-printf '  3p 5h: %s%% disp. | 3p semanal: %s%% disp.\n' \
-  "$p3_5h_pct" "$p3_week_pct"
+# 3p-5h y 3p-weekly son la cubeta de Claude y GPT. El nombre del JSON no se muestra.
+printf '  %s | %s\n' \
+  "$(paint "$(remain_color "$p3_5h_pct")" "Claude y GPT, 5h disp.: ${p3_5h_pct}%")" \
+  "$(paint "$(remain_color "$p3_week_pct")" "Claude y GPT, semanal disp.: ${p3_week_pct}%")"
