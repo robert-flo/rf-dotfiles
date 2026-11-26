@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# cursor-agent status line: session on line 1, then two plain usage lines.
+# cursor-agent status line: session on line 1, then the two plan pools and Grok.com.
+# Auto (autoPercentUsed) is Cursor's own models: Auto, Composer and Grok.
+# API (apiPercentUsed) is Claude, GPT, Gemini and the other named models.
+# When the Cursor pool is empty, Auto and Grok start spending the other one.
 # The session line shrinks to render_width_chars. Usage does not.
 # Spec: ~/.cursor/skills-cursor/statusline/SKILL.md (payload arrives as JSON on stdin).
 export LC_ALL=C.UTF-8 # ${#str} must count characters, not bytes
@@ -231,27 +234,61 @@ if ((${#plain} > width)); then
 fi
 printf '%s\n' "$out"
 
+# used percent -> colored "queda N%" or "agotado". Red from 80% used.
+pool_phrase() {
+  local used=$1 name=$2 left color
+  [[ -n $used ]] || return 0
+  left=$((100 - used))
+  ((left < 0)) && left=0
+  color=$(level_color "$used")
+  if ((used >= 100)); then
+    printf '%s' "${E}[${color}m${name}: agotado${E}[0m"
+  else
+    printf '%s' "${E}[${color}m${name} queda ${left}%${E}[0m"
+  fi
+}
+
+# Grok, Composer and Auto spend the Cursor pool first. Anything else spends Claude's pool.
+uses_cursor_pool() {
+  local blob
+  blob=$(canon_token "$model_id $model")
+  case $blob in
+    *grok* | *composer* | *auto* | default*) return 0 ;;
+  esac
+  return 1
+}
+
 if ((have_usage)); then
-  cursor_line="  📅 Cursor: ${total_pct}% usado"
-  [[ -n $reset_in ]] && cursor_line+=" · reset en ${reset_in}"
-  grok_txt=""
+  auto_seg=$(pool_phrase "$auto_pct" "Auto, Composer y Grok")
+  api_seg=$(pool_phrase "$api_pct" "Claude y otros")
+  first=$auto_seg
+  second=$api_seg
+  if [[ -n $api_pct ]] && ((api_pct >= 100)) && ! uses_cursor_pool; then
+    first=$api_seg
+    second=$auto_seg
+  elif [[ -n $auto_pct ]] && ((auto_pct >= 100)) && uses_cursor_pool; then
+    first=$auto_seg
+    second=$api_seg
+  fi
+  plan=""
+  if [[ -n $first && -n $second ]]; then
+    plan="${first} · ${second}"
+  else
+    plan="${first}${second}"
+  fi
+  if [[ -n $plan ]]; then
+    [[ -n $reset_in ]] && plan+=" · reset en ${reset_in}"
+    printf '  %s\n' "$plan"
+  fi
+  grok_seg=""
   if [[ $grok_available == 0 ]]; then
-    grok_txt="agotado"
+    grok_seg="${E}[31mGrok.com: agotado${E}[0m"
   elif [[ -n $grok_pct ]]; then
-    grok_txt="${grok_pct}% usado"
+    grok_seg=$(pool_phrase "$grok_pct" "Grok.com")
   fi
-  if [[ -n $grok_txt ]]; then
-    [[ -n $grok_reset_in ]] && grok_txt+=" · reset en ${grok_reset_in}"
-    cursor_line+=" | 🤖 Grok Bot: ${grok_txt}"
-  fi
-  printf '%s\n' "$cursor_line"
-  auto_txt="" api_txt=""
-  [[ -n $auto_pct ]] && auto_txt="Balde Auto: ${auto_pct}% usado."
-  [[ -n $api_pct ]] && api_txt="Balde API: ${api_pct}% usado."
-  if [[ -n $auto_txt && -n $api_txt ]]; then
-    printf '  %s | %s\n' "$auto_txt" "$api_txt"
-  elif [[ -n $auto_txt || -n $api_txt ]]; then
-    printf '  %s\n' "${auto_txt}${api_txt}"
+  if [[ -n $grok_seg ]]; then
+    [[ -n $grok_reset_in ]] && grok_seg+=" · reset en ${grok_reset_in}"
+    printf '  %s\n' "$grok_seg"
   fi
 elif [[ -n $usage_error ]]; then
   printf '%s\n' "${E}[31muso: ${usage_error}${E}[0m"
