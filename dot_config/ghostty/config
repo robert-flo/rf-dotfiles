@@ -10,13 +10,14 @@ env = BAT_THEME=ansi
 env = GLAMOUR_STYLE=dark
 
 # Font
-font-family = "Maple Mono NF"
+# font-family = "Maple Mono NF"
 # font-family = "CaskaydiaCove Nerd Font Mono"
 # font-family = "BlexMono Nerd Font"
+font-family = "Operator-caska"
 # font-family = "PlemolJP Console NF"
 # font-family = "JetBrainsMono Nerd Font"
 # font-family = "FiraCode Nerd Font"
-# font-size = 11
+font-size = 11
 # Neovide: hinting = "full", edging = "antialias". Ghostty no tiene esas claves.
 
 # Cursor
