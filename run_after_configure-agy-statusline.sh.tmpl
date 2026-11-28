@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_after_configure-agy-statusline.sh.tmpl
+# Corre en cada apply. Garantiza statusLine y colorScheme por defecto ("dark")
+# en ~/.gemini/antigravity-cli/settings.json sin pisar el resto de las claves.
+# Idempotente: si ya está configurado, no reescribe el archivo.
+# ==============================================================================
+set -euo pipefail
+
+CONFIG_DIR="{{ .chezmoi.homeDir }}/.gemini/antigravity-cli"
+CONFIG_FILE="$CONFIG_DIR/settings.json"
+STATUSLINE_SCRIPT="{{ .chezmoi.homeDir }}/.config/agy/statusline.sh"
+
+echo "==> [chezmoi] Configurando agy statusline para {{ .chezmoi.username }}..."
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> [chezmoi] Error: jq no está disponible para actualizar $CONFIG_FILE." >&2
+  exit 1
+fi
+
+mkdir -p "$CONFIG_DIR"
+
+tmp_file=""
+trap 'rm -f "${tmp_file:-}"' EXIT
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  tmp_file="$(mktemp "${CONFIG_DIR}/settings.json.tmp.XXXXXX")"
+  jq -n --arg cmd "$STATUSLINE_SCRIPT" \
+    '{statusLine: {type: "command", command: $cmd, stack_with_default: false}, colorScheme: "dark"}' >"$tmp_file"
+  chmod 600 "$tmp_file"
+  mv "$tmp_file" "$CONFIG_FILE"
+  tmp_file=""
+  echo "==> [chezmoi] agy statusline configurado en $CONFIG_FILE."
+  exit 0
+fi
+
+if ! jq -e 'type == "object"' "$CONFIG_FILE" >/dev/null 2>&1; then
+  echo "==> [chezmoi] Error: $CONFIG_FILE no es un JSON válido (objeto). No se reescribe." >&2
+  exit 1
+fi
+
+if jq -e --arg cmd "$STATUSLINE_SCRIPT" '
+  .statusLine.type == "command"
+  and .statusLine.command == $cmd
+  and .statusLine.stack_with_default == false
+  and (.statusLine.enabled // true) == true
+  and (.colorScheme // "") != ""
+' "$CONFIG_FILE" >/dev/null 2>&1; then
+  echo "==> [chezmoi] agy statusline ya configurado en $CONFIG_FILE."
+  exit 0
+fi
+
+tmp_file="$(mktemp "${CONFIG_DIR}/settings.json.tmp.XXXXXX")"
+jq --arg cmd "$STATUSLINE_SCRIPT" \
+  '.statusLine = {type: "command", command: $cmd, stack_with_default: false} | .colorScheme //= "dark"' \
+  "$CONFIG_FILE" >"$tmp_file"
+chmod --reference="$CONFIG_FILE" "$tmp_file"
+mv "$tmp_file" "$CONFIG_FILE"
+tmp_file=""
+
+echo "==> [chezmoi] agy statusline configurado en $CONFIG_FILE."
