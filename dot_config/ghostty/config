@@ -10,16 +10,41 @@ env = BAT_THEME=ansi
 env = GLAMOUR_STYLE=dark
 
 # Font
+# Los 4 TTF en ~/.fonts (versionados en dot_fonts), uno por estilo activo:
+#   Operator-caska Regular.ttf      -> font-family
+#   Operator-caska Italic.ttf       -> font-family-italic
+#   Operator-caskabold Regular.ttf  -> font-family-bold
+#   Operator-caskabold Italic.ttf   -> font-family-bold-italic
+# Otras familias (descomenta una y comenta la activa para probar):
 # font-family = "Maple Mono NF"
 # font-family = "CaskaydiaCove Nerd Font Mono"
 # font-family = "BlexMono Nerd Font"
+# font-family = "PlemolJP Console NF"
+# font-family = "JetBrainsMono Nerd Font"
+# font-family = "FiraCode Nerd Font"
+
+# Activa A: Caska para regular/italic, Caskabold para bold/bold-italic
 font-family = "Operator-caska"
 font-family-bold = "Operator-caskabold"
 font-family-italic = "Operator-caska"
 font-family-bold-italic = "Operator-caskabold"
-# font-family = "PlemolJP Console NF"
-# font-family = "JetBrainsMono Nerd Font"
-# font-family = "FiraCode Nerd Font"
+
+# Pruebas manuales: descomenta una variante, comenta las 4 activas y recarga Ghostty
+# B: todo Caska (negrita sintética)
+# font-family = "Operator-caska"
+# font-family-bold = "Operator-caska"
+# font-family-italic = "Operator-caska"
+# font-family-bold-italic = "Operator-caska"
+# C: todo Caskabold
+# font-family = "Operator-caskabold"
+# font-family-bold = "Operator-caskabold"
+# font-family-italic = "Operator-caskabold"
+# font-family-bold-italic = "Operator-caskabold"
+# D: regular Caska + italic Caskabold (cursiva más marcada)
+# font-family = "Operator-caska"
+# font-family-bold = "Operator-caskabold"
+# font-family-italic = "Operator-caskabold"
+# font-family-bold-italic = "Operator-caskabold"
 font-size = 11
 # Neovide: hinting = "full", edging = "antialias". Ghostty no tiene esas claves.
 
