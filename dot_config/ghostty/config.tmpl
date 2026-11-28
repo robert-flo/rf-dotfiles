@@ -70,6 +70,10 @@ bell-features = no-system
 macos-option-as-alt = left
 
 # Shell Integration
+{{- if and (or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test")) (lookPath "fish") }}
+# Lanza fish directamente sin depender de ~/.bashrc (si un instalador externo lo sobrescribe)
+command = {{ lookPath "fish" }}
+{{- end }}
 shell-integration-features = ssh-env,ssh-terminfo
 
 # Vlog Mode (optional)

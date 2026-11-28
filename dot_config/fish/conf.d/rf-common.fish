@@ -20,8 +20,14 @@ else if command -q nvim
     alias vim nvim
 end
 
-# 2. Rutas locales prioritarias
+# 2. Rutas locales prioritarias (incluye shims de mise por si fish arranca directo desde la terminal sin bash)
 fish_add_path -g $HOME/.local/bin $GOPATH/bin $HOME/.cargo/bin node_modules/.bin
+if test -d $HOME/.local/share/mise/shims
+    fish_add_path -ga $HOME/.local/share/mise/shims
+end
+if test -d $HOME/.local/share/mise/command-wrappers/bin
+    fish_add_path -gp $HOME/.local/share/mise/command-wrappers/bin
+end
 
 # 3. Aliases (Craftzdog + estación)
 alias agy="$HOME/.local/bin/agy"

@@ -36,6 +36,11 @@ symbol_map U+2B820-U+2CEAF LXGW WenKai GB Screen
 cursor_trail 1
 
 # --- COMPORTAMIENTO GENERAL ---
+{{- if and (or (eq .chezmoi.username "niri") (eq .chezmoi.username "niri-classic") (eq .chezmoi.username "niri-test")) (lookPath "fish") }}
+
+# Lanza fish directamente sin depender de ~/.bashrc (si un instalador externo lo sobrescribe)
+shell {{ lookPath "fish" }}
+{{- end }}
 
 # Copiar automáticamente al portapapeles cualquier texto seleccionado con el mouse
 copy_on_select yes
