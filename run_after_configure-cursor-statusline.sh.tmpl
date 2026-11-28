@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# run_after_configure-cursor-statusline.sh.tmpl
+# Corre en cada apply. Garantiza statusLine en cli-config.json de Cursor
+# (~/.cursor/cli-config.json y ~/.config/cursor/cli-config.json) sin pisar
+# el resto de las claves. Idempotente: si ya está configurado, no reescribe.
+# ==============================================================================
+set -euo pipefail
+
+DOT_CURSOR_DIR="{{ .chezmoi.homeDir }}/.cursor"
+CURSOR_CONFIG_DIR="{{ .chezmoi.homeDir }}/.config/cursor"
+MAIN_FILE="$DOT_CURSOR_DIR/cli-config.json"
+ALT_FILE="$CURSOR_CONFIG_DIR/cli-config.json"
+STATUSLINE_SCRIPT="{{ .chezmoi.homeDir }}/.config/cursor/statusline.sh"
+
+echo "==> [chezmoi] Configurando Cursor statusline para {{ .chezmoi.username }}..."
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "==> [chezmoi] Error: jq no está disponible para actualizar $MAIN_FILE." >&2
+  exit 1
+fi
+
+mkdir -p "$DOT_CURSOR_DIR" "$CURSOR_CONFIG_DIR"
+
+# Cursor lee ~/.cursor/cli-config.json. Si falta (o es un symlink roto), se enlaza
+# al de ~/.config/cursor; si tampoco existe, se crea vacío.
+if [[ ! -e "$MAIN_FILE" ]]; then
+  [[ -e "$ALT_FILE" ]] || echo "{}" > "$ALT_FILE"
+  ln -s -f -r "$ALT_FILE" "$MAIN_FILE"
+fi
+
+# Rutas reales sin repetir (MAIN_FILE puede ser un symlink a ALT_FILE).
+targets=()
+for candidate in "$MAIN_FILE" "$ALT_FILE"; do
+  [[ -e "$candidate" ]] || continue
+  real="$(readlink -f "$candidate")"
+  seen=0
+  for t in "${targets[@]+"${targets[@]}"}"; do
+    [[ "$t" == "$real" ]] && seen=1
+  done
+  [[ "$seen" -eq 1 ]] || targets+=("$real")
+done
+
+# Validar todos antes de modificar nada.
+for file in "${targets[@]}"; do
+  if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+    echo "==> [chezmoi] Error: $file no es un JSON válido (objeto). No se reescribe." >&2
+    exit 1
+  fi
+done
+
+tmp_file=""
+trap 'rm -f "${tmp_file:-}"' EXIT
+
+for file in "${targets[@]}"; do
+  if jq -e --arg cmd "$STATUSLINE_SCRIPT" '
+    .statusLine.type == "command"
+    and .statusLine.command == $cmd
+  ' "$file" >/dev/null 2>&1; then
+    echo "==> [chezmoi] Cursor statusline ya configurado en $file."
+    continue
+  fi
+
+  tmp_file="$(mktemp "${file}.tmp.XXXXXX")"
+  jq --arg cmd "$STATUSLINE_SCRIPT" \
+    '.statusLine = {type: "command", command: $cmd}' \
+    "$file" >"$tmp_file"
+  chmod --reference="$file" "$tmp_file"
+  mv "$tmp_file" "$file"
+  tmp_file=""
+  echo "==> [chezmoi] Cursor statusline configurado en $file."
+done
